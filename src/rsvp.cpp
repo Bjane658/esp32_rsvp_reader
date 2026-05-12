@@ -44,6 +44,8 @@ void IRAM_ATTR rsvp_onButtonChange() {
   }
 }
 
+static void showPreview();
+
 static void loadText(const String& path = "") {
   String p = path.isEmpty() ? "/text.txt" : path;
 
@@ -54,6 +56,7 @@ static void loadText(const String& path = "") {
       f.close();
       cursor = textBuffer.c_str();
       currentFile = p;
+      lastWord[0] = '\0';
       Serial.print("[RSVP] Loaded text from ");
       Serial.println(p);
       return;
@@ -63,6 +66,7 @@ static void loadText(const String& path = "") {
   textBuffer = "";
   cursor = FALLBACK_TEXT;
   currentFile = "";
+  lastWord[0] = '\0';
   Serial.println("[RSVP] Using fallback text.");
 }
 
@@ -72,15 +76,49 @@ const String& rsvp_get_current_file() {
 
 void rsvp_reload_text() {
   loadText(ap_get_last_path());
+  running = false;
+  showPreview();
 }
 
 void rsvp_load_file(const String& path) {
   loadText(path);
+  running = false;
+  showPreview();
 }
 
 void rsvp_show_current_word() {
   display_clear();
   display_print(1, lastWord);
+}
+
+void rsvp_show_preview() {
+  showPreview();
+}
+
+static void showPreview() {
+  display_clear();
+
+  if (currentFile.isEmpty()) {
+    display_print(0, "fallback text");
+  } else {
+    const char* name = currentFile.c_str();
+    const char* slash = strrchr(name, '/');
+    display_print(0, slash ? slash + 1 : name);
+  }
+
+  char preview[64] = "";
+  int len = 0;
+  const char* p = cursor;
+  while (*p == ' ' || *p == '\n' || *p == '\r') p++;
+  for (int w = 0; w < 3 && *p && len < (int)sizeof(preview) - 2; w++) {
+    if (w > 0) preview[len++] = ' ';
+    while (*p && *p != ' ' && *p != '\n' && *p != '\r' && len < (int)sizeof(preview) - 1) {
+      preview[len++] = *p++;
+    }
+    while (*p == ' ') p++;
+  }
+  preview[len] = '\0';
+  display_print(1, preview);
 }
 
 void rsvp_setup() {
@@ -92,6 +130,7 @@ void rsvp_setup() {
     }
   }
   loadText();
+  showPreview();
 }
 
 void rsvp_loop() {

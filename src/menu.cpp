@@ -11,6 +11,7 @@ static const int WPM_COUNT = 3;
 static bool open = false;
 static int cursorPos = 0;
 static int wpmIndex = 1;
+static bool fileChanged = false;
 
 #define ITEM_WPM    0
 #define ITEM_FILE   1
@@ -51,6 +52,7 @@ bool menu_is_open() {
 void menu_open() {
   open = true;
   cursorPos = 0;
+  fileChanged = false;
   render();
 }
 
@@ -66,6 +68,7 @@ void menu_short_press() {
 void menu_long_press() {
   if (filepicker_is_open()) {
     filepicker_long_press();
+    fileChanged = true;
     render();
     return;
   }
@@ -80,6 +83,7 @@ void menu_long_press() {
       if (ap_is_active()) {
         ap_stop();
         rsvp_reload_text();
+        fileChanged = true;
       } else {
         ap_start();
       }
@@ -89,8 +93,13 @@ void menu_long_press() {
       if (ap_is_active()) {
         ap_stop();
         rsvp_reload_text();
+        fileChanged = true;
       }
-      rsvp_show_current_word();
+      if (fileChanged) {
+        rsvp_show_preview();
+      } else {
+        rsvp_show_current_word();
+      }
       return;
   }
   render();
