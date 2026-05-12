@@ -15,10 +15,9 @@ static const char UPLOAD_HTML[] PROGMEM = R"(
 <html>
 <head><meta charset="utf-8"><title>RSVP Upload</title></head>
 <body>
-<h2>Upload Text</h2>
-<form method="POST" action="/upload">
-  <input type="text" name="title" placeholder="Title" required><br><br>
-  <textarea name="text" rows="12" cols="50" placeholder="Paste your text here..."></textarea><br><br>
+<h2>Upload Text File</h2>
+<form method="POST" action="/upload" enctype="multipart/form-data">
+  <input type="file" name="file" accept=".txt" required><br><br>
   <input type="submit" value="Upload">
 </form>
 </body>
@@ -29,31 +28,34 @@ static void handleRoot() {
   server.send(200, "text/html", UPLOAD_HTML);
 }
 
+static File uploadFile;
+
+static void handleUploadData() {
+  HTTPUpload& upload = server.upload();
+
+  if (upload.status == UPLOAD_FILE_START) {
+    String filename = upload.filename;
+    if (!filename.startsWith("/")) filename = "/" + filename;
+    Serial.print("[AP] Receiving: ");
+    Serial.println(filename);
+    uploadFile = LittleFS.open(filename, "w");
+    lastPath = filename;
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (uploadFile) uploadFile.write(upload.buf, upload.currentSize);
+  } else if (upload.status == UPLOAD_FILE_END) {
+    if (uploadFile) {
+      uploadFile.close();
+      Serial.print("[AP] Saved to ");
+      Serial.print(lastPath);
+      File check = LittleFS.open(lastPath, "r");
+      Serial.printf(" size=%d\n", check ? (int)check.size() : -1);
+      if (check) check.close();
+    }
+  }
+}
+
 static void handleUpload() {
-  if (!server.hasArg("title") || server.arg("title").isEmpty()) {
-    server.send(400, "text/plain", "No title provided.");
-    return;
-  }
-  if (!server.hasArg("text") || server.arg("text").isEmpty()) {
-    server.send(400, "text/plain", "No text provided.");
-    return;
-  }
-
-  String title = server.arg("title");
-  String path = "/" + title + ".txt";
-
-  File f = LittleFS.open(path, "w");
-  if (!f) {
-    server.send(500, "text/plain", "Failed to open file.");
-    return;
-  }
-  f.print(server.arg("text"));
-  f.close();
-  lastPath = path;
-
   server.send(200, "text/plain", "Uploaded! You can close this page.");
-  Serial.print("[AP] Text saved to ");
-  Serial.println(path);
 }
 
 void ap_start() {
@@ -64,7 +66,7 @@ void ap_start() {
   Serial.println(WiFi.softAPIP());
 
   server.on("/", handleRoot);
-  server.on("/upload", HTTP_POST, handleUpload);
+  server.on("/upload", HTTP_POST, handleUpload, handleUploadData);
   server.begin();
   active = true;
 }
