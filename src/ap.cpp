@@ -24,8 +24,18 @@ static void handleRoot() {
     "<input type='submit' value='Upload'>"
     "</form><hr><h3>Storage</h3><p>");
   html += String(used / 1024) + " KB used / " + String(total / 1024) + " KB total ("
-       + String(free / 1024) + " KB free, " + String(pct) + "%)</p>"
-       "</body></html>";
+       + String(free / 1024) + " KB free, " + String(pct) + "%)</p>";
+
+  html += F("<hr><h3>Files</h3><ul>");
+  File root = LittleFS.open("/");
+  File f = root.openNextFile();
+  while (f) {
+    if (!f.isDirectory()) {
+      html += "<li>" + String(f.name()) + " (" + String(f.size() / 1024) + " KB)</li>";
+    }
+    f = root.openNextFile();
+  }
+  html += F("</ul></body></html>");
 
   server.send(200, "text/html", html);
 }
