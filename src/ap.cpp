@@ -31,7 +31,12 @@ static void handleRoot() {
   File f = root.openNextFile();
   while (f) {
     if (!f.isDirectory()) {
-      html += "<li>" + String(f.name()) + " (" + String(f.size() / 1024) + " KB)</li>";
+      String name = f.name();
+      String path = "/" + name;
+      html += "<li>" + name + " (" + String(f.size() / 1024) + " KB) "
+           + "<a href='/download?f=" + name + "'>Download</a> "
+           + "<a href='/delete?f=" + name + "' onclick=\"return confirm('Delete " + name + "?')\">Delete</a>"
+           + "</li>";
     }
     f = root.openNextFile();
   }
@@ -67,6 +72,28 @@ static void handleUpload() {
   server.send(200, "text/plain", "Uploaded! You can close this page.");
 }
 
+static void handleDownload() {
+  if (!server.hasArg("f")) { server.send(400, "text/plain", "Missing filename."); return; }
+  String path = "/" + server.arg("f");
+  File f = LittleFS.open(path, "r");
+  if (!f) { server.send(404, "text/plain", "File not found."); return; }
+  server.sendHeader("Content-Disposition", "attachment; filename=\"" + server.arg("f") + "\"");
+  server.streamFile(f, "text/plain");
+  f.close();
+}
+
+static void handleDelete() {
+  if (!server.hasArg("f")) { server.send(400, "text/plain", "Missing filename."); return; }
+  String path = "/" + server.arg("f");
+  if (LittleFS.remove(path)) {
+    Serial.println("[AP] Deleted: " + path);
+    server.sendHeader("Location", "/");
+    server.send(303);
+  } else {
+    server.send(500, "text/plain", "Delete failed.");
+  }
+}
+
 void ap_start() {
   WiFi.softAP(AP_SSID, AP_PASSWORD);
   Serial.print("[AP] Started. Connect to: ");
@@ -76,6 +103,8 @@ void ap_start() {
 
   server.on("/", handleRoot);
   server.on("/upload", HTTP_POST, handleUpload, handleUploadData);
+  server.on("/download", HTTP_GET, handleDownload);
+  server.on("/delete", HTTP_GET, handleDelete);
   server.begin();
   active = true;
 }
