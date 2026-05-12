@@ -114,14 +114,6 @@ void rsvp_show_preview() {
 static void showPreview() {
   display_clear();
 
-  if (currentFile.isEmpty()) {
-    display_print(0, "fallback text");
-  } else {
-    const char* name = currentFile.c_str();
-    const char* slash = strrchr(name, '/');
-    display_print(0, slash ? slash + 1 : name);
-  }
-
   char preview[64] = "";
   int len = 0;
   const char* p = cursor;
@@ -134,7 +126,7 @@ static void showPreview() {
     while (*p == ' ') p++;
   }
   preview[len] = '\0';
-  display_print(1, preview);
+  display_print(0, preview);
 }
 
 void rsvp_setup() {
@@ -187,7 +179,7 @@ void rsvp_loop() {
         while (*p == ' ' || *p == '\n' || *p == '\r') p++;
         cursor = p;
         lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
-        rsvp_show_current_word();
+        showPreview();
       } else {
         waitingForDouble = true;
         firstPressTime = millis();
