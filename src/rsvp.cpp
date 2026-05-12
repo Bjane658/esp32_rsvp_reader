@@ -67,6 +67,10 @@ void rsvp_reload_text() {
   loadText(ap_get_last_path());
 }
 
+void rsvp_load_file(const String& path) {
+  loadText(path);
+}
+
 void rsvp_show_current_word() {
   display_clear();
   display_print(1, lastWord);
