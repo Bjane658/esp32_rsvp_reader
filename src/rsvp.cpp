@@ -27,6 +27,7 @@ static volatile bool shortPressFlag = false;
 static volatile bool longPressFlag = false;
 
 static String textBuffer;
+static String currentFile = "";
 static const char* cursor = nullptr;
 static char lastWord[64] = "";
 
@@ -52,6 +53,7 @@ static void loadText(const String& path = "") {
       textBuffer = f.readString();
       f.close();
       cursor = textBuffer.c_str();
+      currentFile = p;
       Serial.print("[RSVP] Loaded text from ");
       Serial.println(p);
       return;
@@ -60,7 +62,12 @@ static void loadText(const String& path = "") {
 
   textBuffer = "";
   cursor = FALLBACK_TEXT;
+  currentFile = "";
   Serial.println("[RSVP] Using fallback text.");
+}
+
+const String& rsvp_get_current_file() {
+  return currentFile;
 }
 
 void rsvp_reload_text() {

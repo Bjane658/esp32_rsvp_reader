@@ -26,10 +26,20 @@ static void render() {
   char wpmLabel[16];
   snprintf(wpmLabel, sizeof(wpmLabel), "WPM: %d", WPM_OPTIONS[wpmIndex]);
 
+  char fileLabel[40];
+  const String& f = rsvp_get_current_file();
+  if (f.isEmpty()) {
+    snprintf(fileLabel, sizeof(fileLabel), "File: -");
+  } else {
+    const char* name = f.c_str();
+    const char* slash = strrchr(name, '/');
+    snprintf(fileLabel, sizeof(fileLabel), "File: %s", slash ? slash + 1 : name);
+  }
+
   display_clear();
   display_cursor(cursorPos);
   display_print(ITEM_WPM,  wpmLabel);
-  display_print(ITEM_FILE, "Choose file");
+  display_print(ITEM_FILE, fileLabel);
   display_print(ITEM_WIFI, ap_is_active() ? "WiFi AP: ON" : "WiFi AP: OFF");
   display_print(ITEM_EXIT, "Exit");
 }
