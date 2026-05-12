@@ -19,7 +19,7 @@ static const char* FALLBACK_TEXT =
   "The key advantage is that it reduces subvocalization and "
   "unnecessary saccades, making the reading process more efficient.";
 
-static volatile bool running = true;
+static volatile bool running = false;
 static volatile unsigned long pressStart = 0;
 static volatile bool buttonDown = false;
 static volatile bool longFired = false;
