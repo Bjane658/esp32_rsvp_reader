@@ -28,9 +28,12 @@ static volatile bool longPressFlag = false;
 
 static String textBuffer;
 static String currentFile = "";
+static const char* textStart = nullptr;
 static const char* cursor = nullptr;
 static char lastWords[3][64] = {"", "", ""};
 static int lastWordIndex = 0;
+
+#define DOUBLE_CLICK_MS 300
 
 void IRAM_ATTR rsvp_onButtonChange() {
   if (digitalRead(0) == LOW) {
@@ -56,6 +59,7 @@ static void loadText(const String& path = "") {
       textBuffer = f.readString();
       f.close();
       cursor = textBuffer.c_str();
+      textStart = cursor;
       currentFile = p;
       lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
       Serial.print("[RSVP] Loaded text from ");
@@ -66,6 +70,7 @@ static void loadText(const String& path = "") {
 
   textBuffer = "";
   cursor = FALLBACK_TEXT;
+  textStart = cursor;
   currentFile = "";
   lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
   Serial.println("[RSVP] Using fallback text.");
@@ -162,13 +167,40 @@ void rsvp_loop() {
     }
   }
 
+  static unsigned long firstPressTime = 0;
+  static bool waitingForDouble = false;
+
   if (shortPressFlag) {
     shortPressFlag = false;
     if (menu_is_open()) {
       menu_short_press();
+    } else if (!running) {
+      if (waitingForDouble && (millis() - firstPressTime <= DOUBLE_CLICK_MS)) {
+        waitingForDouble = false;
+        const char* p = cursor;
+        if (p > textStart) p--;
+        while (p > textStart && (*p == ' ' || *p == '\n' || *p == '\r')) p--;
+        while (p > textStart) {
+          if (*(p-1) == '.' || *(p-1) == '!' || *(p-1) == '?') break;
+          p--;
+        }
+        while (*p == ' ' || *p == '\n' || *p == '\r') p++;
+        cursor = p;
+        lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
+        rsvp_show_current_word();
+      } else {
+        waitingForDouble = true;
+        firstPressTime = millis();
+      }
     } else {
-      running = !running;
+      running = false;
+      waitingForDouble = false;
     }
+  }
+
+  if (waitingForDouble && (millis() - firstPressTime > DOUBLE_CLICK_MS)) {
+    waitingForDouble = false;
+    running = true;
   }
 
   if (menu_is_open()) {
