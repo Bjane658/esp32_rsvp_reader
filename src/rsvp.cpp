@@ -43,24 +43,28 @@ void IRAM_ATTR rsvp_onButtonChange() {
   }
 }
 
-static void loadText() {
-  if (LittleFS.exists("/text.txt")) {
-    File f = LittleFS.open("/text.txt", "r");
+static void loadText(const String& path = "") {
+  String p = path.isEmpty() ? "/text.txt" : path;
+
+  if (LittleFS.exists(p)) {
+    File f = LittleFS.open(p, "r");
     if (f) {
       textBuffer = f.readString();
       f.close();
       cursor = textBuffer.c_str();
-      Serial.println("[RSVP] Loaded text from LittleFS.");
+      Serial.print("[RSVP] Loaded text from ");
+      Serial.println(p);
       return;
     }
   }
+
   textBuffer = "";
   cursor = FALLBACK_TEXT;
   Serial.println("[RSVP] Using fallback text.");
 }
 
 void rsvp_reload_text() {
-  loadText();
+  loadText(ap_get_last_path());
 }
 
 void rsvp_show_current_word() {
