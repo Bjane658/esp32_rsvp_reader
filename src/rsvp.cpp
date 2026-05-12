@@ -2,8 +2,9 @@
 #include <LittleFS.h>
 #include "rsvp.h"
 #include "ap.h"
+#include "menu.h"
+#include "display.h"
 
-#define WPM 250
 #define LONG_PRESS_MS 1000
 
 static const char* FALLBACK_TEXT =
@@ -26,6 +27,7 @@ static volatile bool longPressFlag = false;
 
 static String textBuffer;
 static const char* cursor = nullptr;
+static char lastWord[64] = "";
 
 void IRAM_ATTR rsvp_onButtonChange() {
   if (digitalRead(0) == LOW) {
@@ -58,6 +60,15 @@ static void loadText() {
   Serial.println("[RSVP] Using fallback text.");
 }
 
+void rsvp_reload_text() {
+  loadText();
+}
+
+void rsvp_show_current_word() {
+  display_clear();
+  display_print(1, lastWord);
+}
+
 void rsvp_setup() {
   if (!LittleFS.begin(false)) {
     Serial.println("[RSVP] LittleFS mount failed, formatting...");
@@ -70,38 +81,37 @@ void rsvp_setup() {
 }
 
 void rsvp_loop() {
-  const unsigned long msPerWord = 60000UL / WPM;
+  const unsigned long msPerWord = 60000UL / menu_get_wpm();
 
   if (longPressFlag) {
     longPressFlag = false;
-    if (ap_is_active()) {
-      ap_stop();
-      loadText();
+    if (menu_is_open()) {
+      menu_long_press();
     } else {
       running = false;
-      ap_start();
+      menu_open();
     }
-    return;
   }
 
   if (shortPressFlag) {
     shortPressFlag = false;
-    if (!ap_is_active()) {
+    if (menu_is_open()) {
+      menu_short_press();
+    } else {
       running = !running;
     }
+  }
+
+  if (menu_is_open()) {
+    menu_loop();
     return;
   }
 
-  if (ap_is_active()) {
-    ap_loop();
-    delay(10);
-    return;
-  }
+  if (!running) return;
 
-  if (!running) {
-    delay(50);
-    return;
-  }
+  static unsigned long lastWordTime = 0;
+  if (millis() - lastWordTime < msPerWord) return;
+  lastWordTime = millis();
 
   while (*cursor == ' ' || *cursor == '\n' || *cursor == '\r') cursor++;
 
@@ -112,13 +122,11 @@ void rsvp_loop() {
     return;
   }
 
-  char word[64];
   int i = 0;
-  while (*cursor && *cursor != ' ' && *cursor != '\n' && *cursor != '\r' && i < (int)sizeof(word) - 1) {
-    word[i++] = *cursor++;
+  while (*cursor && *cursor != ' ' && *cursor != '\n' && *cursor != '\r' && i < (int)sizeof(lastWord) - 1) {
+    lastWord[i++] = *cursor++;
   }
-  word[i] = '\0';
+  lastWord[i] = '\0';
 
-  Serial.println(word);
-  delay(msPerWord);
+  Serial.println(lastWord);
 }
