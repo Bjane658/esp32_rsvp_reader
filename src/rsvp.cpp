@@ -132,7 +132,28 @@ void rsvp_loop() {
   if (millis() - lastWordTime < msPerWord) return;
   lastWordTime = millis();
 
-  while (*cursor == ' ' || *cursor == '\n' || *cursor == '\r') cursor++;
+  bool pausePoint = false;
+  while (*cursor == ' ' || *cursor == '\n' || *cursor == '\r') {
+    if (*cursor == '\n') {
+      const char* next = cursor + 1;
+      while (*next == '\r') next++;
+      if (*next == '\n') {
+        pausePoint = true;
+      }
+    }
+    cursor++;
+  }
+
+  if (*cursor == '#') {
+    pausePoint = true;
+    while (*cursor == '#' || *cursor == ' ') cursor++;
+  }
+
+  if (pausePoint) {
+    running = false;
+    rsvp_show_current_word();
+    return;
+  }
 
   if (!*cursor) {
     Serial.println("--- END ---");
