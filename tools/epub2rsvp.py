@@ -62,8 +62,8 @@ def convert(input_path, output_path):
     while i < len(lines):
         line = lines[i].rstrip('\n')
 
-        # Skip fenced divs ::: and HTML blocks
-        if line.startswith(':::') or line.startswith('<') or line.startswith('!['):
+        # Skip fenced divs, HTML blocks, raw html spans
+        if line.startswith(':::') or line.startswith('<') or line.startswith('![') or line.startswith('`'):
             i += 1
             continue
 

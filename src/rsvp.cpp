@@ -57,7 +57,6 @@ static void openFile(const String& path) {
     if (textFile) textFile.close();
     textFile = LittleFS.open(path, "r");
     if (textFile) {
-      Serial.printf("[RSVP] size=%d pos=%d\n", (int)textFile.size(), (int)textFile.position());
       currentFile = path;
       lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
       Serial.print("[RSVP] Opened: ");

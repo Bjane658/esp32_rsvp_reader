@@ -10,22 +10,24 @@ static WebServer server(80);
 static bool active = false;
 static String lastPath = "";
 
-static const char UPLOAD_HTML[] PROGMEM = R"(
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>RSVP Upload</title></head>
-<body>
-<h2>Upload Text File</h2>
-<form method="POST" action="/upload" enctype="multipart/form-data">
-  <input type="file" name="file" accept=".txt" required><br><br>
-  <input type="submit" value="Upload">
-</form>
-</body>
-</html>
-)";
-
 static void handleRoot() {
-  server.send(200, "text/html", UPLOAD_HTML);
+  size_t total = LittleFS.totalBytes();
+  size_t used  = LittleFS.usedBytes();
+  size_t free  = total - used;
+  int pct = total ? (int)(used * 100 / total) : 0;
+
+  String html = F("<!DOCTYPE html><html><head><meta charset='utf-8'>"
+    "<title>RSVP Upload</title></head><body>"
+    "<h2>Upload Text File</h2>"
+    "<form method='POST' action='/upload' enctype='multipart/form-data'>"
+    "<input type='file' name='file' accept='.txt' required><br><br>"
+    "<input type='submit' value='Upload'>"
+    "</form><hr><h3>Storage</h3><p>");
+  html += String(used / 1024) + " KB used / " + String(total / 1024) + " KB total ("
+       + String(free / 1024) + " KB free, " + String(pct) + "%)</p>"
+       "</body></html>";
+
+  server.send(200, "text/html", html);
 }
 
 static File uploadFile;
@@ -46,10 +48,7 @@ static void handleUploadData() {
     if (uploadFile) {
       uploadFile.close();
       Serial.print("[AP] Saved to ");
-      Serial.print(lastPath);
-      File check = LittleFS.open(lastPath, "r");
-      Serial.printf(" size=%d\n", check ? (int)check.size() : -1);
-      if (check) check.close();
+      Serial.println(lastPath);
     }
   }
 }
