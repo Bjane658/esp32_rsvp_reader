@@ -29,7 +29,8 @@ static volatile bool longPressFlag = false;
 static String textBuffer;
 static String currentFile = "";
 static const char* cursor = nullptr;
-static char lastWord[64] = "";
+static char lastWords[3][64] = {"", "", ""};
+static int lastWordIndex = 0;
 
 void IRAM_ATTR rsvp_onButtonChange() {
   if (digitalRead(0) == LOW) {
@@ -56,7 +57,7 @@ static void loadText(const String& path = "") {
       f.close();
       cursor = textBuffer.c_str();
       currentFile = p;
-      lastWord[0] = '\0';
+      lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
       Serial.print("[RSVP] Loaded text from ");
       Serial.println(p);
       return;
@@ -66,7 +67,7 @@ static void loadText(const String& path = "") {
   textBuffer = "";
   cursor = FALLBACK_TEXT;
   currentFile = "";
-  lastWord[0] = '\0';
+  lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
   Serial.println("[RSVP] Using fallback text.");
 }
 
@@ -87,8 +88,18 @@ void rsvp_load_file(const String& path) {
 }
 
 void rsvp_show_current_word() {
+  char line[96] = "";
+  int len = 0;
+  for (int i = 0; i < 3; i++) {
+    int idx = (lastWordIndex + 1 + i) % 3;
+    if (lastWords[idx][0] == '\0') continue;
+    if (len > 0) line[len++] = ' ';
+    const char* w = lastWords[idx];
+    while (*w && len < (int)sizeof(line) - 1) line[len++] = *w++;
+  }
+  line[len] = '\0';
   display_clear();
-  display_print(1, lastWord);
+  display_print(1, line);
 }
 
 void rsvp_show_preview() {
@@ -201,11 +212,12 @@ void rsvp_loop() {
     return;
   }
 
+  lastWordIndex = (lastWordIndex + 1) % 3;
   int i = 0;
-  while (*cursor && *cursor != ' ' && *cursor != '\n' && *cursor != '\r' && i < (int)sizeof(lastWord) - 1) {
-    lastWord[i++] = *cursor++;
+  while (*cursor && *cursor != ' ' && *cursor != '\n' && *cursor != '\r' && i < (int)sizeof(lastWords[0]) - 1) {
+    lastWords[lastWordIndex][i++] = *cursor++;
   }
-  lastWord[i] = '\0';
+  lastWords[lastWordIndex][i] = '\0';
 
-  Serial.println(lastWord);
+  Serial.println(lastWords[lastWordIndex]);
 }
