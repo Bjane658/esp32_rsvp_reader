@@ -91,6 +91,14 @@ bool ap_is_active() {
   return active;
 }
 
+String ap_get_ip() {
+  return active ? WiFi.softAPIP().toString() : String("");
+}
+
+const char* ap_get_ssid() {
+  return AP_SSID;
+}
+
 const String& ap_get_last_path() {
   return lastPath;
 }

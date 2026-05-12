@@ -6,3 +6,5 @@ void ap_stop();
 bool ap_is_active();
 void ap_loop();
 const String& ap_get_last_path();
+String ap_get_ip();
+const char* ap_get_ssid();

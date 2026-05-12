@@ -4,6 +4,7 @@
 #include "ap.h"
 #include "rsvp.h"
 #include "filepicker.h"
+#include "wifimenu.h"
 
 static const int WPM_OPTIONS[] = {200, 300, 400};
 static const int WPM_COUNT = 3;
@@ -41,7 +42,7 @@ static void render() {
   display_cursor(cursorPos);
   display_print(ITEM_WPM,  wpmLabel);
   display_print(ITEM_FILE, fileLabel);
-  display_print(ITEM_WIFI, ap_is_active() ? "WiFi AP: ON" : "WiFi AP: OFF");
+  display_print(ITEM_WIFI, ap_is_active() ? "WiFi AP: ON >" : "WiFi AP: OFF >");
   display_print(ITEM_EXIT, "Exit");
 }
 
@@ -61,6 +62,11 @@ void menu_short_press() {
     filepicker_short_press();
     return;
   }
+  if (wifimenu_is_open()) {
+    wifimenu_short_press();
+    render();
+    return;
+  }
   cursorPos = (cursorPos + 1) % ITEM_COUNT;
   render();
 }
@@ -72,6 +78,11 @@ void menu_long_press() {
     render();
     return;
   }
+  if (wifimenu_is_open()) {
+    wifimenu_long_press();
+    if (!ap_is_active()) fileChanged = true;
+    return;
+  }
   switch (cursorPos) {
     case ITEM_WPM:
       wpmIndex = (wpmIndex + 1) % WPM_COUNT;
@@ -80,14 +91,8 @@ void menu_long_press() {
       filepicker_open();
       return;
     case ITEM_WIFI:
-      if (ap_is_active()) {
-        ap_stop();
-        rsvp_reload_text();
-        fileChanged = true;
-      } else {
-        ap_start();
-      }
-      break;
+      wifimenu_open();
+      return;
     case ITEM_EXIT:
       open = false;
       if (ap_is_active()) {

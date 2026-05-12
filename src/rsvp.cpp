@@ -5,7 +5,7 @@
 #include "menu.h"
 #include "display.h"
 
-#define LONG_PRESS_MS 1500
+#define LONG_PRESS_MS 1000
 #define DOUBLE_CLICK_MS 300
 
 static volatile bool running = false;
