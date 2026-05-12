@@ -22,6 +22,7 @@ static const char* FALLBACK_TEXT =
 static volatile bool running = true;
 static volatile unsigned long pressStart = 0;
 static volatile bool buttonDown = false;
+static volatile bool longFired = false;
 static volatile bool shortPressFlag = false;
 static volatile bool longPressFlag = false;
 
@@ -33,12 +34,10 @@ void IRAM_ATTR rsvp_onButtonChange() {
   if (digitalRead(0) == LOW) {
     pressStart = millis();
     buttonDown = true;
+    longFired = false;
   } else if (buttonDown) {
-    unsigned long held = millis() - pressStart;
     buttonDown = false;
-    if (held >= LONG_PRESS_MS) {
-      longPressFlag = true;
-    } else if (held >= 20) {
+    if (!longFired && (millis() - pressStart >= 20)) {
       shortPressFlag = true;
     }
   }
@@ -82,6 +81,11 @@ void rsvp_setup() {
 
 void rsvp_loop() {
   const unsigned long msPerWord = 60000UL / menu_get_wpm();
+
+  if (!longFired && buttonDown && (millis() - pressStart >= LONG_PRESS_MS)) {
+    longFired = true;
+    longPressFlag = true;
+  }
 
   if (longPressFlag) {
     longPressFlag = false;
