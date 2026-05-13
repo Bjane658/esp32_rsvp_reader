@@ -5,6 +5,7 @@
 #include "rsvp.h"
 #include "filepicker.h"
 #include "wifimenu.h"
+#include "chapterpicker.h"
 
 static const int WPM_OPTIONS[] = {200, 300, 400};
 static const int WPM_COUNT = 3;
@@ -15,13 +16,12 @@ static int scrollOffset = 0;
 static int wpmIndex = 1;
 static bool fileChanged = false;
 
-#define ITEM_PREV_CH    0
-#define ITEM_NEXT_CH    1
-#define ITEM_WPM        2
-#define ITEM_FILE       3
-#define ITEM_WIFI       4
-#define ITEM_EXIT       5
-#define ITEM_COUNT      6
+#define ITEM_CHAPTER    0
+#define ITEM_WPM        1
+#define ITEM_FILE       2
+#define ITEM_WIFI       3
+#define ITEM_EXIT       4
+#define ITEM_COUNT      5
 
 #define DISPLAY_ROWS    4
 
@@ -31,8 +31,7 @@ int menu_get_wpm() {
 
 static void item_label(int item, char* buf, size_t len) {
   switch (item) {
-    case ITEM_PREV_CH: snprintf(buf, len, "Prev chapter"); break;
-    case ITEM_NEXT_CH: snprintf(buf, len, "Next chapter"); break;
+    case ITEM_CHAPTER: snprintf(buf, len, "Chapter >"); break;
     case ITEM_WPM:     snprintf(buf, len, "WPM: %d", WPM_OPTIONS[wpmIndex]); break;
     case ITEM_FILE: {
       const String& f = rsvp_get_current_file();
@@ -87,14 +86,17 @@ void menu_short_press() {
     render();
     return;
   }
+  if (chapterpicker_is_open()) {
+    chapterpicker_short_press();
+    return;
+  }
   cursorPos = (cursorPos + 1) % ITEM_COUNT;
   render();
 }
 
 void menu_long_press() {
   if (filepicker_is_open()) {
-    filepicker_long_press();
-    fileChanged = true;
+    if (filepicker_long_press()) fileChanged = true;
     render();
     return;
   }
@@ -103,7 +105,15 @@ void menu_long_press() {
     if (!ap_is_active()) fileChanged = true;
     return;
   }
+  if (chapterpicker_is_open()) {
+    if (chapterpicker_long_press()) open = false; // close menu only if chapter selected
+    else render();                                // Back: stay in menu
+    return;
+  }
   switch (cursorPos) {
+    case ITEM_CHAPTER:
+      chapterpicker_open();
+      return;
     case ITEM_WPM:
       wpmIndex = (wpmIndex + 1) % WPM_COUNT;
       break;

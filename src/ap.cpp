@@ -3,6 +3,7 @@
 #include <WebServer.h>
 #include <LittleFS.h>
 #include "ap.h"
+#include "frontend.h"
 
 #define AP_SSID "RSVP-Reader"
 
@@ -10,39 +11,40 @@ static WebServer server(80);
 static bool active = false;
 static String lastPath = "";
 
+static void sendChunk(const char* s) {
+  server.sendContent(s);
+}
+
 static void handleRoot() {
   size_t total = LittleFS.totalBytes();
   size_t used  = LittleFS.usedBytes();
-  size_t free  = total - used;
+  size_t free_ = total - used;
   int pct = total ? (int)(used * 100 / total) : 0;
 
-  String html = F("<!DOCTYPE html><html><head><meta charset='utf-8'>"
-    "<title>RSVP Upload</title></head><body>"
-    "<h2>Upload Text File</h2>"
-    "<form method='POST' action='/upload' enctype='multipart/form-data'>"
-    "<input type='file' name='file' accept='.txt' required><br><br>"
-    "<input type='submit' value='Upload'>"
-    "</form><hr><h3>Storage</h3><p>");
-  html += String(used / 1024) + " KB used / " + String(total / 1024) + " KB total ("
-       + String(free / 1024) + " KB free, " + String(pct) + "%)</p>";
+  char storage_info[64];
+  snprintf(storage_info, sizeof(storage_info),
+    "%u KB used / %u KB total (%u KB free, %d%%)",
+    (unsigned)(used / 1024), (unsigned)(total / 1024),
+    (unsigned)(free_ / 1024), pct);
 
-  html += F("<hr><h3>Files</h3><ul>");
+  String file_list = "";
   File root = LittleFS.open("/");
   File f = root.openNextFile();
   while (f) {
     if (!f.isDirectory()) {
       String name = f.name();
-      String path = "/" + name;
-      html += "<li>" + name + " (" + String(f.size() / 1024) + " KB) "
-           + "<a href='/download?f=" + name + "'>Download</a> "
-           + "<a href='/delete?f=" + name + "' onclick=\"return confirm('Delete " + name + "?')\">Delete</a>"
-           + "</li>";
+      file_list += "<li>" + name + " (" + String(f.size() / 1024) + " KB) "
+                + "<a href='/download?f=" + name + "'>Download</a> "
+                + "<a href='/delete?f=" + name + "' onclick=\"return confirm('Delete " + name + "?')\">Delete</a>"
+                + "</li>";
     }
     f = root.openNextFile();
   }
-  html += F("</ul></body></html>");
 
-  server.send(200, "text/html", html);
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/html", "");
+  frontend_send_html(sendChunk, storage_info, file_list.c_str());
+  server.sendContent("");  // flush / end chunked transfer
 }
 
 static File uploadFile;

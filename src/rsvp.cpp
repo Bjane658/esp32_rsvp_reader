@@ -21,6 +21,43 @@ static bool usingFallback = false;
 static char lastWords[3][64] = {"", "", ""};
 static int lastWordIndex = 0;
 
+static RsvpChapter chapterIndex[RSVP_MAX_CHAPTERS];
+static int chapterCount = 0;
+
+static void buildChapterIndex() {
+  chapterCount = 0;
+  if (currentFile.isEmpty()) return;
+  File f = LittleFS.open(currentFile, "r");
+  if (!f) return;
+  int prev = '\0';
+  int c;
+  while ((c = f.read()) != -1 && chapterCount < RSVP_MAX_CHAPTERS) {
+    if (c == '#' && (prev == '\n' || prev == '\0')) {
+      size_t headingStart = f.position() - 1;
+      // only single '#': next char must be a space
+      int next = f.read();
+      if (next != ' ') { prev = next; continue; }
+      // skip any additional spaces
+      while ((c = f.read()) != -1 && c == ' ');
+      char title[RSVP_MAX_TITLE];
+      int len = 0;
+      while (c != -1 && c != '\n' && c != '\r' && len < RSVP_MAX_TITLE - 1) {
+        title[len++] = (char)c;
+        c = f.read();
+      }
+      title[len] = '\0';
+      chapterIndex[chapterCount].offset = headingStart;
+      strncpy(chapterIndex[chapterCount].title, title, RSVP_MAX_TITLE);
+      chapterCount++;
+    }
+    prev = c;
+  }
+  f.close();
+}
+
+const RsvpChapter* rsvp_get_chapters()    { return chapterIndex; }
+int                rsvp_get_chapter_count() { return chapterCount; }
+
 static const char* FALLBACK_TEXT =
   "Rapid serial visual presentation is a method of displaying text "
   "so that it can be read quickly. Words are shown one at a time in "
@@ -59,14 +96,18 @@ static void openFile(const String& path) {
     if (textFile) {
       currentFile = path;
       lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
+      buildChapterIndex();
       Serial.print("[RSVP] Opened: ");
       Serial.println(path);
+      Serial.print("[RSVP] Chapters found: ");
+      Serial.println(chapterCount);
       return;
     }
   }
   usingFallback = true;
   fallbackCursor = FALLBACK_TEXT;
   currentFile = "";
+  chapterCount = 0;
   lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
   Serial.println("[RSVP] Using fallback text.");
 }
@@ -155,6 +196,20 @@ void rsvp_prev_chapter() {
   }
   // no prev chapter, go to start
   textFile.seek(0);
+  lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
+  showPreview();
+}
+
+size_t rsvp_get_file_position() {
+  if (usingFallback) return fallbackCursor - FALLBACK_TEXT;
+  if (!textFile) return 0;
+  return textFile.position();
+}
+
+void rsvp_seek(size_t pos) {
+  if (usingFallback) return;
+  if (!textFile) return;
+  textFile.seek(pos);
   lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
   showPreview();
 }
