@@ -106,6 +106,59 @@ void rsvp_show_preview() {
   showPreview();
 }
 
+void rsvp_next_chapter() {
+  if (usingFallback) return;
+  if (!textFile) return;
+  // scan forward: find next line starting with #
+  int prev = '\0';
+  int c;
+  while ((c = textFile.read()) != -1) {
+    if (c == '#' && (prev == '\n' || prev == '\0')) {
+      // skip the # markers and spaces, land on heading text
+      while ((c = textFile.read()) != -1 && (c == '#' || c == ' '));
+      if (c != -1) textFile.seek(textFile.position() - 1);
+      lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
+      showPreview();
+      return;
+    }
+    prev = c;
+  }
+  // no next chapter found, stay at end
+}
+
+void rsvp_prev_chapter() {
+  if (usingFallback) return;
+  if (!textFile) return;
+  size_t pos = textFile.position();
+  // step back at least 2 chars to escape current heading if we're on one
+  if (pos > 2) pos -= 2; else pos = 0;
+  // scan backward for \n#
+  while (pos > 0) {
+    textFile.seek(pos - 1);
+    char c = textFile.read();
+    if (c == '\n' || pos == 1) {
+      // check if next char is #
+      size_t checkPos = (c == '\n') ? pos : pos - 1;
+      textFile.seek(checkPos);
+      char next = textFile.read();
+      if (next == '#') {
+        // skip # markers and spaces
+        while ((next = textFile.read()) != -1 && (next == '#' || next == ' '));
+        if (next != -1) textFile.seek(textFile.position() - 1);
+        lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
+        showPreview();
+        return;
+      }
+    }
+    if (pos == 0) break;
+    pos--;
+  }
+  // no prev chapter, go to start
+  textFile.seek(0);
+  lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
+  showPreview();
+}
+
 // Read one char from current source, returns -1 at end
 static int readChar() {
   if (usingFallback) {

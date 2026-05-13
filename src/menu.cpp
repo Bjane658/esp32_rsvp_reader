@@ -11,39 +11,58 @@ static const int WPM_COUNT = 3;
 
 static bool open = false;
 static int cursorPos = 0;
+static int scrollOffset = 0;
 static int wpmIndex = 1;
 static bool fileChanged = false;
 
-#define ITEM_WPM    0
-#define ITEM_FILE   1
-#define ITEM_WIFI   2
-#define ITEM_EXIT   3
-#define ITEM_COUNT  4
+#define ITEM_PREV_CH    0
+#define ITEM_NEXT_CH    1
+#define ITEM_WPM        2
+#define ITEM_FILE       3
+#define ITEM_WIFI       4
+#define ITEM_EXIT       5
+#define ITEM_COUNT      6
+
+#define DISPLAY_ROWS    4
 
 int menu_get_wpm() {
   return WPM_OPTIONS[wpmIndex];
 }
 
-static void render() {
-  char wpmLabel[16];
-  snprintf(wpmLabel, sizeof(wpmLabel), "WPM: %d", WPM_OPTIONS[wpmIndex]);
-
-  char fileLabel[40];
-  const String& f = rsvp_get_current_file();
-  if (f.isEmpty()) {
-    snprintf(fileLabel, sizeof(fileLabel), "File: -");
-  } else {
-    const char* name = f.c_str();
-    const char* slash = strrchr(name, '/');
-    snprintf(fileLabel, sizeof(fileLabel), "File: %s", slash ? slash + 1 : name);
+static void item_label(int item, char* buf, size_t len) {
+  switch (item) {
+    case ITEM_PREV_CH: snprintf(buf, len, "Prev chapter"); break;
+    case ITEM_NEXT_CH: snprintf(buf, len, "Next chapter"); break;
+    case ITEM_WPM:     snprintf(buf, len, "WPM: %d", WPM_OPTIONS[wpmIndex]); break;
+    case ITEM_FILE: {
+      const String& f = rsvp_get_current_file();
+      if (f.isEmpty()) {
+        snprintf(buf, len, "File: -");
+      } else {
+        const char* name = f.c_str();
+        const char* slash = strrchr(name, '/');
+        snprintf(buf, len, "File: %s", slash ? slash + 1 : name);
+      }
+      break;
+    }
+    case ITEM_WIFI: snprintf(buf, len, ap_is_active() ? "WiFi AP: ON >" : "WiFi AP: OFF >"); break;
+    case ITEM_EXIT: snprintf(buf, len, "Exit"); break;
   }
+}
+
+static void render() {
+  // keep cursor visible
+  if (cursorPos < scrollOffset) scrollOffset = cursorPos;
+  if (cursorPos >= scrollOffset + DISPLAY_ROWS) scrollOffset = cursorPos - DISPLAY_ROWS + 1;
 
   display_clear();
-  display_cursor(cursorPos);
-  display_print(ITEM_WPM,  wpmLabel);
-  display_print(ITEM_FILE, fileLabel);
-  display_print(ITEM_WIFI, ap_is_active() ? "WiFi AP: ON >" : "WiFi AP: OFF >");
-  display_print(ITEM_EXIT, "Exit");
+  display_cursor(cursorPos - scrollOffset);
+
+  char label[40];
+  for (int i = scrollOffset; i < scrollOffset + DISPLAY_ROWS && i < ITEM_COUNT; i++) {
+    item_label(i, label, sizeof(label));
+    display_print(i - scrollOffset, label);
+  }
 }
 
 bool menu_is_open() {
@@ -53,6 +72,7 @@ bool menu_is_open() {
 void menu_open() {
   open = true;
   cursorPos = 0;
+  scrollOffset = 0;
   fileChanged = false;
   render();
 }

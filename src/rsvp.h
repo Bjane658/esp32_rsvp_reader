@@ -8,3 +8,5 @@ void rsvp_load_file(const String& path);
 const String& rsvp_get_current_file();
 void rsvp_show_current_word();
 void rsvp_show_preview();
+void rsvp_next_chapter();
+void rsvp_prev_chapter();
