@@ -54,6 +54,13 @@ static void handleUploadData() {
 
   if (upload.status == UPLOAD_FILE_START) {
     String filename = upload.filename;
+    // LittleFS limits filenames to 31 chars (excluding the leading slash)
+    if (filename.length() > 31) {
+      // keep extension, truncate stem
+      int dot = filename.lastIndexOf('.');
+      String ext = (dot >= 0) ? filename.substring(dot) : "";
+      filename = filename.substring(0, 31 - ext.length()) + ext;
+    }
     if (!filename.startsWith("/")) filename = "/" + filename;
     Serial.print("[AP] Receiving: ");
     Serial.println(filename);

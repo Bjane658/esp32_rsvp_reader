@@ -91,6 +91,12 @@ static const char HTML_JSZIP_END[] = R"RSVP(
 
   function stripTags(html){
     return html
+      .replace(/<h1[^>]*>/gi, '\n# ')
+      .replace(/<h2[^>]*>/gi, '\n## ')
+      .replace(/<\/h1>/gi, '\n')
+      .replace(/<\/h2>/gi, '\n')
+      .replace(/<p\s[^>]*class="[^"]*\bCN\b[^"]*"[^>]*>/gi, '\n# ')
+      .replace(/<p\s[^>]*class="[^"]*\bchapter[-_]?(?:number|num|head|title|name)?\b[^"]*"[^>]*>/gi, '\n# ')
       .replace(/<[^>]*>/g, ' ')
       .replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
@@ -100,6 +106,7 @@ static const char HTML_JSZIP_END[] = R"RSVP(
       .replace(/&#39;/g, "'")
       .replace(/[ \t]+/g, ' ')
       .replace(/\n[ \t]+/g, '\n')
+      .replace(/(^|\n)(#+) *\n+ */g, '$1$2 ')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
   }

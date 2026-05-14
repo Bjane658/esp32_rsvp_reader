@@ -5,7 +5,7 @@
 #include "rsvp.h"
 
 #define MAX_FILES    16
-#define MAX_NAME     32
+#define MAX_NAME     64
 #define DISPLAY_ROWS  4
 
 static bool open = false;

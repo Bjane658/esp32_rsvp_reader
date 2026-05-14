@@ -96,6 +96,8 @@ static void openFile(const String& path) {
     if (textFile) {
       currentFile = path;
       lastWords[0][0] = '\0'; lastWords[1][0] = '\0'; lastWords[2][0] = '\0'; lastWordIndex = 0;
+      display_clear();
+      display_print(0, "Loading...");
       buildChapterIndex();
       Serial.print("[RSVP] Opened: ");
       Serial.println(path);
