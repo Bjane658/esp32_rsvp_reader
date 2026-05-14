@@ -3,7 +3,8 @@
 #include "display.h"
 #include "rsvp.h"
 
-#define DISPLAY_ROWS 4
+#define DISPLAY_ROWS  4
+#define LIST_ROWS     3  // rows 1-3 used for scrollable list; row 0 is current chapter
 
 static bool open        = false;
 static int  cursorPos   = 0;

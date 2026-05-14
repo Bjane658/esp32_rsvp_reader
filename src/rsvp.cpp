@@ -416,5 +416,5 @@ void rsvp_loop() {
   } while (c != -1 && c != ' ' && c != '\n' && c != '\r');
   lastWords[lastWordIndex][i] = '\0';
 
-  Serial.println(lastWords[lastWordIndex]);
+  display_word(lastWords[lastWordIndex]);
 }

@@ -31,7 +31,22 @@ int menu_get_wpm() {
 
 static void item_label(int item, char* buf, size_t len) {
   switch (item) {
-    case ITEM_CHAPTER: snprintf(buf, len, "Chapter >"); break;
+    case ITEM_CHAPTER: {
+      const RsvpChapter* chapters = rsvp_get_chapters();
+      int count = rsvp_get_chapter_count();
+      if (count == 0) {
+        snprintf(buf, len, "Chapter >");
+      } else {
+        size_t pos = rsvp_get_file_position();
+        int idx = 0;
+        for (int i = 0; i < count; i++) {
+          if (chapters[i].offset <= pos) idx = i;
+          else break;
+        }
+        snprintf(buf, len, "Ch: %s", chapters[idx].title);
+      }
+      break;
+    }
     case ITEM_WPM:     snprintf(buf, len, "WPM: %d", WPM_OPTIONS[wpmIndex]); break;
     case ITEM_FILE: {
       const String& f = rsvp_get_current_file();
