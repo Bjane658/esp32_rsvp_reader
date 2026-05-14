@@ -94,6 +94,31 @@ void menu_short_press() {
   render();
 }
 
+void menu_double_press() {
+  if (filepicker_is_open()) {
+    filepicker_cancel();
+    render();
+    return;
+  }
+  if (wifimenu_is_open()) {
+    wifimenu_cancel();
+    render();
+    return;
+  }
+  if (chapterpicker_is_open()) {
+    chapterpicker_cancel();
+    render();
+    return;
+  }
+  // no submenu open — close the menu itself
+  open = false;
+  if (fileChanged) {
+    rsvp_show_preview();
+  } else {
+    rsvp_show_current_word();
+  }
+}
+
 void menu_long_press() {
   if (filepicker_is_open()) {
     if (filepicker_long_press()) fileChanged = true;

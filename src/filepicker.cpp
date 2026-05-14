@@ -60,6 +60,10 @@ void filepicker_short_press() {
   render();
 }
 
+void filepicker_cancel() {
+  open = false;
+}
+
 bool filepicker_long_press() {
   open = false;
   if (cursorPos < fileCount) {

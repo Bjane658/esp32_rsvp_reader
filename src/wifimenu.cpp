@@ -37,6 +37,10 @@ void wifimenu_short_press() {
   open = false;
 }
 
+void wifimenu_cancel() {
+  open = false;
+}
+
 void wifimenu_long_press() {
   if (ap_is_active()) {
     ap_stop();

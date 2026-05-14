@@ -298,7 +298,14 @@ void rsvp_loop() {
   if (shortPressFlag) {
     shortPressFlag = false;
     if (menu_is_open()) {
-      menu_short_press();
+      if (waitingForDouble && (millis() - firstPressTime <= DOUBLE_CLICK_MS)) {
+        waitingForDouble = false;
+        menu_double_press();
+      } else {
+        waitingForDouble = true;
+        firstPressTime = millis();
+        menu_short_press();
+      }
     } else if (!running) {
       if (waitingForDouble && (millis() - firstPressTime <= DOUBLE_CLICK_MS)) {
         waitingForDouble = false;

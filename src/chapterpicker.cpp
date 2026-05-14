@@ -68,6 +68,10 @@ void chapterpicker_short_press() {
   render();
 }
 
+void chapterpicker_cancel() {
+  open = false;
+}
+
 bool chapterpicker_long_press() {
   open = false;
   const RsvpChapter* chapters = rsvp_get_chapters();
