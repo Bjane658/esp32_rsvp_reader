@@ -1,7 +1,7 @@
 #pragma once
 
-#define DISPLAY_COLS 20  // characters per row (update when real screen driver is known)
-#define DISPLAY_ROWS  4  // visible rows
+#define DISPLAY_COLS 35  // characters per row (update when real screen driver is known)
+#define DISPLAY_ROWS  7  // visible rows
 
 void display_setup();
 void display_clear();

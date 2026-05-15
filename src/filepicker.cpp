@@ -6,7 +6,7 @@
 
 #define MAX_FILES    16
 #define MAX_NAME     64
-#define DISPLAY_ROWS  4
+#define DISPLAY_ROWS  7
 
 static bool open = false;
 static char files[MAX_FILES][MAX_NAME];
