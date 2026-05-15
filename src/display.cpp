@@ -33,7 +33,7 @@ static void ensure_fastmode() {
 static void hw_render() {
   ensure_fastmode();
   display.clearMemory();
-  display.landscape();
+  display.setRotation(1);
   for (int i = 0; i < DISPLAY_ROWS; i++) {
     if (buffer[i][0] == '\0') continue;
     display.setTextColor(BLACK);
@@ -56,7 +56,7 @@ static void hw_render_row(int row) {
 }
 
 void display_setup() {
-  display.landscape();
+  display.setRotation(1);
   display_clear();
 }
 
