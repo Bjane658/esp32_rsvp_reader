@@ -36,24 +36,52 @@ void display_cursor(int row) {
   cursorRow = row;
 }
 
-void display_word(const char* word) {
+void display_word(const char* prev, const char* word, const char* next) {
   int wlen = (int)strlen(word);
 
   // ORP index: ~30% into the word, minimum 0
   int orp = wlen > 1 ? (wlen * 3) / 10 : 0;
 
-  // left padding so ORP character lands on ORP_FOCAL column
-  int pad = ORP_FOCAL - orp;
+  // context chars to show from prev/next (more context for short words)
+  int ctx = 8 - wlen;
+  if (ctx < 2) ctx = 2;
+
+  // left padding so ORP character of the main word lands on ORP_FOCAL column
+  // account for prev context + space before the word
+  int prevLen = prev ? (int)strlen(prev) : 0;
+  int prevCtx = prevLen > ctx ? ctx : prevLen;
+  int pad = ORP_FOCAL - orp - prevCtx - (prevCtx > 0 ? 1 : 0);
   if (pad < 0) pad = 0;
 
-  // build padded string into the centre row buffer
   char line[DISPLAY_COLS + 1];
   int pos = 0;
+
+  // leading spaces
   while (pos < pad && pos < DISPLAY_COLS)
     line[pos++] = ' ';
-  int wi = 0;
-  while (wi < wlen && pos < DISPLAY_COLS)
-    line[pos++] = word[wi++];
+
+  // prev word tail
+  if (prevCtx > 0 && prev) {
+    const char* start = prev + prevLen - prevCtx;
+    while (*start && pos < DISPLAY_COLS)
+      line[pos++] = *start++;
+    if (pos < DISPLAY_COLS)
+      line[pos++] = ' ';
+  }
+
+  // current word
+  const char* w = word;
+  while (*w && pos < DISPLAY_COLS)
+    line[pos++] = *w++;
+
+  // next word head
+  if (next && *next && pos < DISPLAY_COLS) {
+    line[pos++] = ' ';
+    int ni = 0;
+    while (next[ni] && ni < ctx && pos < DISPLAY_COLS)
+      line[pos++] = next[ni++];
+  }
+
   line[pos] = '\0';
 
   display_clear();

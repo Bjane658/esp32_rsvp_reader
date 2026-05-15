@@ -2,7 +2,9 @@
 #include "menu.h"
 #include "display.h"
 #include "ap.h"
-#include "rsvp.h"
+#include "textengine.h"
+#include "rsvp_mode.h"
+#include "reader.h"
 #include "filepicker.h"
 #include "wifimenu.h"
 #include "chapterpicker.h"
@@ -18,12 +20,13 @@ static bool fileChanged = false;
 
 #define ITEM_CHAPTER    0
 #define ITEM_WPM        1
-#define ITEM_FILE       2
-#define ITEM_WIFI       3
-#define ITEM_EXIT       4
-#define ITEM_COUNT      5
+#define ITEM_MODE       2
+#define ITEM_FILE       3
+#define ITEM_WIFI       4
+#define ITEM_EXIT       5
+#define ITEM_COUNT      6
 
-#define DISPLAY_ROWS    4
+#define MENU_ROWS    4
 
 int menu_get_wpm() {
   return WPM_OPTIONS[wpmIndex];
@@ -32,12 +35,12 @@ int menu_get_wpm() {
 static void item_label(int item, char* buf, size_t len) {
   switch (item) {
     case ITEM_CHAPTER: {
-      const RsvpChapter* chapters = rsvp_get_chapters();
-      int count = rsvp_get_chapter_count();
+      const Chapter* chapters = te_get_chapters();
+      int count = te_get_chapter_count();
       if (count == 0) {
         snprintf(buf, len, "Chapter >");
       } else {
-        size_t pos = rsvp_get_file_position();
+        size_t pos = te_current_pos();
         int idx = 0;
         for (int i = 0; i < count; i++) {
           if (chapters[i].offset <= pos) idx = i;
@@ -48,8 +51,9 @@ static void item_label(int item, char* buf, size_t len) {
       break;
     }
     case ITEM_WPM:     snprintf(buf, len, "WPM: %d", WPM_OPTIONS[wpmIndex]); break;
+    case ITEM_MODE:    snprintf(buf, len, "Mode: %s", reader_get_mode_name()); break;
     case ITEM_FILE: {
-      const String& f = rsvp_get_current_file();
+      const String& f = te_get_current_file();
       if (f.isEmpty()) {
         snprintf(buf, len, "File: -");
       } else {
@@ -65,15 +69,14 @@ static void item_label(int item, char* buf, size_t len) {
 }
 
 static void render() {
-  // keep cursor visible
   if (cursorPos < scrollOffset) scrollOffset = cursorPos;
-  if (cursorPos >= scrollOffset + DISPLAY_ROWS) scrollOffset = cursorPos - DISPLAY_ROWS + 1;
+  if (cursorPos >= scrollOffset + MENU_ROWS) scrollOffset = cursorPos - MENU_ROWS + 1;
 
   display_clear();
   display_cursor(cursorPos - scrollOffset);
 
   char label[40];
-  for (int i = scrollOffset; i < scrollOffset + DISPLAY_ROWS && i < ITEM_COUNT; i++) {
+  for (int i = scrollOffset; i < scrollOffset + MENU_ROWS && i < ITEM_COUNT; i++) {
     item_label(i, label, sizeof(label));
     display_print(i - scrollOffset, label);
   }
@@ -125,12 +128,11 @@ void menu_double_press() {
     render();
     return;
   }
-  // no submenu open — close the menu itself
   open = false;
   if (fileChanged) {
-    rsvp_show_preview();
+    rsvp_mode_show_preview();
   } else {
-    rsvp_show_current_word();
+    rsvp_mode_show_current_word();
   }
 }
 
@@ -146,8 +148,8 @@ void menu_long_press() {
     return;
   }
   if (chapterpicker_is_open()) {
-    if (chapterpicker_long_press()) open = false; // close menu only if chapter selected
-    else render();                                // Back: stay in menu
+    if (chapterpicker_long_press()) open = false;
+    else render();
     return;
   }
   switch (cursorPos) {
@@ -156,6 +158,9 @@ void menu_long_press() {
       return;
     case ITEM_WPM:
       wpmIndex = (wpmIndex + 1) % WPM_COUNT;
+      break;
+    case ITEM_MODE:
+      reader_toggle_mode();
       break;
     case ITEM_FILE:
       filepicker_open();
@@ -167,13 +172,13 @@ void menu_long_press() {
       open = false;
       if (ap_is_active()) {
         ap_stop();
-        rsvp_reload_text();
+        te_reload_from_ap();
         fileChanged = true;
       }
       if (fileChanged) {
-        rsvp_show_preview();
+        rsvp_mode_show_preview();
       } else {
-        rsvp_show_current_word();
+        rsvp_mode_show_current_word();
       }
       return;
   }

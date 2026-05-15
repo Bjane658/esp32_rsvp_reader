@@ -2,7 +2,7 @@
 #include "wifimenu.h"
 #include "display.h"
 #include "ap.h"
-#include "rsvp.h"
+#include "textengine.h"
 
 static bool open = false;
 
@@ -44,7 +44,7 @@ void wifimenu_cancel() {
 void wifimenu_long_press() {
   if (ap_is_active()) {
     ap_stop();
-    rsvp_reload_text();
+    te_reload_from_ap();
   } else {
     ap_start();
   }

@@ -1,20 +1,19 @@
 #include <Arduino.h>
 #include "chapterpicker.h"
 #include "display.h"
-#include "rsvp.h"
+#include "textengine.h"
 
 #define DISPLAY_ROWS  4
-#define LIST_ROWS     3  // rows 1-3 used for scrollable list; row 0 is current chapter
 
-static bool open        = false;
-static int  cursorPos   = 0;
+static bool open         = false;
+static int  cursorPos    = 0;
 static int  scrollOffset = 0;
 static int  currentChapter = 0;
 
 static int findCurrentChapter() {
-  const RsvpChapter* chapters = rsvp_get_chapters();
-  int count = rsvp_get_chapter_count();
-  size_t pos = rsvp_get_file_position();
+  const Chapter* chapters = te_get_chapters();
+  int count = te_get_chapter_count();
+  size_t pos = te_current_pos();
   int idx = 0;
   for (int i = 0; i < count; i++) {
     if (chapters[i].offset <= pos) idx = i;
@@ -24,8 +23,8 @@ static int findCurrentChapter() {
 }
 
 static void render() {
-  const RsvpChapter* chapters = rsvp_get_chapters();
-  int count = rsvp_get_chapter_count();
+  const Chapter* chapters = te_get_chapters();
+  int count = te_get_chapter_count();
   int total = count + 1; // +1 for Back
 
   if (cursorPos < scrollOffset) scrollOffset = cursorPos;
@@ -38,7 +37,7 @@ static void render() {
     if (i == count) {
       display_print(i - scrollOffset, "< Back");
     } else {
-      char label[RSVP_MAX_TITLE + 2];
+      char label[TE_MAX_TITLE + 2];
       if (i == currentChapter) {
         snprintf(label, sizeof(label), "*%s", chapters[i].title);
       } else {
@@ -50,7 +49,7 @@ static void render() {
 }
 
 void chapterpicker_open() {
-  if (rsvp_get_chapter_count() == 0) return;
+  if (te_get_chapter_count() == 0) return;
   currentChapter = findCurrentChapter();
   cursorPos      = currentChapter;
   scrollOffset   = 0;
@@ -63,7 +62,7 @@ bool chapterpicker_is_open() {
 }
 
 void chapterpicker_short_press() {
-  int count = rsvp_get_chapter_count();
+  int count = te_get_chapter_count();
   if (count == 0) return;
   cursorPos = (cursorPos + 1) % (count + 1);
   render();
@@ -75,10 +74,10 @@ void chapterpicker_cancel() {
 
 bool chapterpicker_long_press() {
   open = false;
-  const RsvpChapter* chapters = rsvp_get_chapters();
-  int count = rsvp_get_chapter_count();
+  const Chapter* chapters = te_get_chapters();
+  int count = te_get_chapter_count();
   if (cursorPos < count) {
-    rsvp_seek(chapters[cursorPos].offset);
+    te_seek(chapters[cursorPos].offset);
     return true;
   }
   return false; // Back selected

@@ -2,7 +2,7 @@
 #include <LittleFS.h>
 #include "filepicker.h"
 #include "display.h"
-#include "rsvp.h"
+#include "textengine.h"
 
 #define MAX_FILES    16
 #define MAX_NAME     64
@@ -69,7 +69,7 @@ bool filepicker_long_press() {
   if (cursorPos < fileCount) {
     String path = "/";
     path += files[cursorPos];
-    rsvp_load_file(path);
+    te_open_file(path);
     return true;
   }
   return false; // Back selected
