@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <esp_sleep.h>
 #include "reader.h"
 #include "textengine.h"
 #include "rsvp_mode.h"
@@ -6,8 +7,25 @@
 #include "menu.h"
 #include "display.h"
 
-#define LONG_PRESS_MS   1000
-#define DOUBLE_CLICK_MS  400
+#define LONG_PRESS_MS        1000
+#define DOUBLE_CLICK_MS       400
+#define SLEEP_TIMEOUT_MS   20000UL  // 20 seconds (testing)
+
+static unsigned long lastActivityTime = 0;
+
+static void resetActivity() {
+  lastActivityTime = millis();
+}
+
+static void enterSleep() {
+  te_save_position();
+  display_clear();
+  display_print(0, "Sleeping...");
+  Serial.println("sleeping");
+  delay(100);  // let serial flush and display update
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
+  esp_deep_sleep_start();
+}
 
 typedef enum { MODE_RSVP, MODE_EREADER } ReaderMode;
 static ReaderMode currentMode = MODE_RSVP;
@@ -43,6 +61,7 @@ static void stopCurrentMode() {
 
 void reader_setup() {
   te_setup();
+  resetActivity();
   startCurrentMode();
 }
 
@@ -55,6 +74,7 @@ void reader_loop() {
 
   if (longPressFlag) {
     longPressFlag = false;
+    resetActivity();
     if (menu_is_open()) {
       menu_long_press();
     } else {
@@ -69,6 +89,7 @@ void reader_loop() {
 
   if (shortPressFlag) {
     shortPressFlag = false;
+    resetActivity();
 
     if (menu_is_open()) {
       if (waitingForDouble && (millis() - firstPressTime <= DOUBLE_CLICK_MS)) {
@@ -104,6 +125,7 @@ void reader_loop() {
       menu_short_press();
     } else {
       if (currentMode == MODE_RSVP) {
+        resetActivity();
         rsvp_mode_set_running(true);
       } else {
         ereader_mode_short_press();
@@ -118,6 +140,14 @@ void reader_loop() {
 
   if (currentMode == MODE_RSVP)   rsvp_mode_loop();
   else                             ereader_mode_loop();
+
+  // sleep when idle and reader is not running
+  bool readerRunning = (currentMode == MODE_RSVP) && rsvp_mode_is_running();
+  if (!readerRunning && !menu_is_open()) {
+    if (millis() - lastActivityTime > SLEEP_TIMEOUT_MS) {
+      enterSleep();
+    }
+  }
 }
 
 void reader_toggle_mode() {
