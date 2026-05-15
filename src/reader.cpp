@@ -84,6 +84,7 @@ void reader_loop() {
       if (currentMode == MODE_RSVP && rsvp_mode_is_running()) {
         // running: stop immediately, no double-press possible
         rsvp_mode_set_running(false);
+        te_save_position();
         waitingForDouble = false;
       } else if (waitingForDouble && (millis() - firstPressTime <= DOUBLE_CLICK_MS)) {
         // second press while stopped → double-press action

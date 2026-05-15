@@ -25,5 +25,8 @@ size_t      te_current_pos();
 const Chapter* te_get_chapters();
 int            te_get_chapter_count();
 
+// Persist / restore position in NVS
+void        te_save_position();
+
 // Preview (first few words from current position)
 void        te_show_preview();

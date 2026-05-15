@@ -1,8 +1,11 @@
 #include <Arduino.h>
 #include <LittleFS.h>
+#include <Preferences.h>
 #include "textengine.h"
 #include "display.h"
 #include "ap.h"
+
+static Preferences prefs;
 
 static const char* FALLBACK_TEXT =
   "Rapid serial visual presentation is a method of displaying text "
@@ -58,6 +61,34 @@ static void buildChapterIndex() {
 const Chapter* te_get_chapters()     { return chapterIndex; }
 int            te_get_chapter_count() { return chapterCount; }
 
+// ── Position persistence ──────────────────────────────────────────────────────
+
+// NVS keys are max 15 chars — derive a short key from the filename
+static void filePosKey(const String& path, char* out, size_t outLen) {
+  uint32_t h = 2166136261u;
+  for (int i = 0; i < (int)path.length(); i++)
+    h = (h ^ (uint8_t)path[i]) * 16777619u;
+  snprintf(out, outLen, "p%08x", (unsigned)h);
+}
+
+void te_save_position() {
+  if (usingFallback || currentFile.isEmpty()) return;
+  char key[15];
+  filePosKey(currentFile, key, sizeof(key));
+  prefs.begin("rpos", false);
+  prefs.putUInt(key, (uint32_t)te_current_pos());
+  prefs.end();
+}
+
+static uint32_t loadSavedPosition(const String& path) {
+  char key[15];
+  filePosKey(path, key, sizeof(key));
+  prefs.begin("rpos", true);
+  uint32_t pos = prefs.getUInt(key, 0);
+  prefs.end();
+  return pos;
+}
+
 // ── File management ──────────────────────────────────────────────────────────
 
 static void openFile(const String& path) {
@@ -72,10 +103,17 @@ static void openFile(const String& path) {
       display_clear();
       display_print(0, "Loading...");
       buildChapterIndex();
+      prefs.begin("reader", false);
+      prefs.putString("lastFile", path);
+      prefs.end();
+      uint32_t savedPos = loadSavedPosition(path);
+      te_seek_to((size_t)savedPos);
       Serial.print("[TE] Opened: ");
       Serial.println(path);
       Serial.print("[TE] Chapters: ");
-      Serial.println(chapterCount);
+      Serial.print(chapterCount);
+      Serial.print(" @ ");
+      Serial.println(savedPos);
       return;
     }
   }
@@ -92,7 +130,12 @@ void te_setup() {
     LittleFS.format();
     LittleFS.begin(false);
   }
-  openFile("/text.txt");
+  prefs.begin("reader", true);
+  String lastFile = prefs.getString("lastFile", "/text.txt");
+  prefs.end();
+  Serial.print("[TE] Restoring: ");
+  Serial.println(lastFile);
+  openFile(lastFile);
 }
 
 void te_open_file(const String& path) {

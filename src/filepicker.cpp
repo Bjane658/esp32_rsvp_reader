@@ -67,6 +67,7 @@ void filepicker_cancel() {
 bool filepicker_long_press() {
   open = false;
   if (cursorPos < fileCount) {
+    te_save_position();  // persist position of current book before switching
     String path = "/";
     path += files[cursorPos];
     te_open_file(path);

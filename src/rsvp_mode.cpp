@@ -123,6 +123,7 @@ void rsvp_mode_loop() {
   if (pausePoint) {
     if (c != -1) te_seek_to(te_current_pos() - 1);
     running = false;
+    te_save_position();
     rsvp_mode_show_current_word();
     return;
   }
