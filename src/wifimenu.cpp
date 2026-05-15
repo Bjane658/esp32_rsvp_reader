@@ -3,10 +3,10 @@
 #include "display.h"
 #include "ap.h"
 
-static bool open = false;
+static bool isOpen = false;
 
 static void render() {
-  display_clear();
+  display_reset();
   if (ap_is_active()) {
     char buf[40];
     display_print(0, "WiFi AP: ON");
@@ -21,23 +21,24 @@ static void render() {
     display_print(1, "Long press: turn on");
     display_print(2, "Short press: back");
   }
+  display_flush();
 }
 
 void wifimenu_open() {
-  open = true;
+  isOpen = true;
   render();
 }
 
 bool wifimenu_is_open() {
-  return open;
+  return isOpen;
 }
 
 void wifimenu_short_press() {
-  open = false;
+  isOpen = false;
 }
 
 void wifimenu_cancel() {
-  open = false;
+  isOpen = false;
 }
 
 void wifimenu_long_press() {

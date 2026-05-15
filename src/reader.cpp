@@ -22,6 +22,7 @@ static void enterSleep() {
   te_save_position();
   display_clear();
   display_print(0, "Sleeping...");
+  display_flush();
   Serial.println("sleeping");
   delay(100);  // let serial flush and display update
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
@@ -36,7 +37,6 @@ static volatile bool          buttonDown  = false;
 static volatile bool          longFired   = false;
 static volatile bool          shortPressFlag = false;
 static volatile bool          longPressFlag  = false;
-
 void IRAM_ATTR reader_onButtonChange() {
   if (digitalRead(0) == LOW) {
     pressStart = millis();
@@ -44,7 +44,8 @@ void IRAM_ATTR reader_onButtonChange() {
     longFired  = false;
   } else if (buttonDown) {
     buttonDown = false;
-    if (!longFired && (millis() - pressStart >= 20)) {
+    unsigned long dur = millis() - pressStart;
+    if (!longFired && dur >= 20) {
       shortPressFlag = true;
     }
   }
@@ -69,7 +70,7 @@ static void saveMode() {
 
 static void loadMode() {
   Preferences p;
-  p.begin("reader", true);
+  p.begin("reader", false);  // read-write, creates namespace if missing
   currentMode = (ReaderMode)p.getUChar("mode", (uint8_t)MODE_RSVP);
   p.end();
 }

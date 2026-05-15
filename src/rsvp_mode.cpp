@@ -28,6 +28,7 @@ void rsvp_mode_show_current_word() {
   line[len] = '\0';
   display_clear();
   display_print(1, line);
+  display_flush();
 }
 
 void rsvp_mode_show_preview() {

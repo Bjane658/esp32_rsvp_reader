@@ -6,9 +6,8 @@
 
 #define MAX_FILES    16
 #define MAX_NAME     64
-#define DISPLAY_ROWS  7
 
-static bool open = false;
+static bool isOpen = false;
 static char files[MAX_FILES][MAX_NAME];
 static int fileCount    = 0;
 static int cursorPos    = 0;
@@ -35,16 +34,17 @@ static void render() {
   if (cursorPos < scrollOffset) scrollOffset = cursorPos;
   if (cursorPos >= scrollOffset + DISPLAY_ROWS) scrollOffset = cursorPos - DISPLAY_ROWS + 1;
 
-  display_clear();
+  display_reset();
   display_cursor(cursorPos - scrollOffset);
   for (int i = scrollOffset; i < scrollOffset + DISPLAY_ROWS && i < total; i++) {
     if (i < fileCount) display_print(i - scrollOffset, files[i]);
     else               display_print(i - scrollOffset, "< Back");
   }
+  display_flush();
 }
 
 void filepicker_open() {
-  open         = true;
+  isOpen         = true;
   cursorPos    = 0;
   scrollOffset = 0;
   scan();
@@ -52,7 +52,7 @@ void filepicker_open() {
 }
 
 bool filepicker_is_open() {
-  return open;
+  return isOpen;
 }
 
 void filepicker_short_press() {
@@ -66,11 +66,11 @@ void filepicker_double_press() {
 }
 
 void filepicker_cancel() {
-  open = false;
+  isOpen = false;
 }
 
 bool filepicker_long_press() {
-  open = false;
+  isOpen = false;
   if (cursorPos < fileCount) {
     te_save_position();  // persist position of current book before switching
     String path = "/";

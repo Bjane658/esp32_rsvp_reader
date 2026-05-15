@@ -3,9 +3,7 @@
 #include "display.h"
 #include "textengine.h"
 
-#define DISPLAY_ROWS  7
-
-static bool open         = false;
+static bool isOpen       = false;
 static int  cursorPos    = 0;
 static int  scrollOffset = 0;
 static int  currentChapter = 0;
@@ -30,7 +28,7 @@ static void render() {
   if (cursorPos < scrollOffset) scrollOffset = cursorPos;
   if (cursorPos >= scrollOffset + DISPLAY_ROWS) scrollOffset = cursorPos - DISPLAY_ROWS + 1;
 
-  display_clear();
+  display_reset();
   display_cursor(cursorPos - scrollOffset);
 
   for (int i = scrollOffset; i < scrollOffset + DISPLAY_ROWS && i < total; i++) {
@@ -46,6 +44,7 @@ static void render() {
       display_print(i - scrollOffset, label);
     }
   }
+  display_flush();
 }
 
 void chapterpicker_open() {
@@ -53,12 +52,12 @@ void chapterpicker_open() {
   currentChapter = findCurrentChapter();
   cursorPos      = currentChapter;
   scrollOffset   = 0;
-  open           = true;
+  isOpen           = true;
   render();
 }
 
 bool chapterpicker_is_open() {
-  return open;
+  return isOpen;
 }
 
 void chapterpicker_short_press() {
@@ -76,11 +75,11 @@ void chapterpicker_double_press() {
 }
 
 void chapterpicker_cancel() {
-  open = false;
+  isOpen = false;
 }
 
 bool chapterpicker_long_press() {
-  open = false;
+  isOpen = false;
   const Chapter* chapters = te_get_chapters();
   int count = te_get_chapter_count();
   if (cursorPos < count) {

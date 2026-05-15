@@ -12,7 +12,7 @@
 static const int WPM_OPTIONS[] = {150, 200, 300};
 static const int WPM_COUNT = 3;
 
-static bool open = false;
+static bool isOpen = false;
 static int cursorPos = 0;
 static int scrollOffset = 0;
 static int wpmIndex = 1;
@@ -72,7 +72,7 @@ static void render() {
   if (cursorPos < scrollOffset) scrollOffset = cursorPos;
   if (cursorPos >= scrollOffset + MENU_ROWS) scrollOffset = cursorPos - MENU_ROWS + 1;
 
-  display_clear();
+  display_reset();
   display_cursor(cursorPos - scrollOffset);
 
   char label[40];
@@ -80,14 +80,15 @@ static void render() {
     item_label(i, label, sizeof(label));
     display_print(i - scrollOffset, label);
   }
+  display_flush();
 }
 
 bool menu_is_open() {
-  return open;
+  return isOpen;
 }
 
 void menu_open() {
-  open = true;
+  isOpen = true;
   cursorPos = 0;
   scrollOffset = 0;
   fileChanged = false;
@@ -164,7 +165,7 @@ void menu_long_press() {
       wifimenu_open();
       return;
     case ITEM_EXIT:
-      open = false;
+      isOpen = false;
       if (ap_is_active()) {
         ap_stop();
       }
@@ -179,7 +180,7 @@ void menu_long_press() {
 }
 
 void menu_loop() {
-  if (open && ap_is_active()) {
+  if (isOpen && ap_is_active()) {
     ap_loop();
   }
 }

@@ -29,7 +29,7 @@ static bool historyPop(size_t* out) {
 // Render DISPLAY_ROWS lines of wrapped text from current file position.
 // Advances the file cursor to just past the last char rendered.
 static void renderPage() {
-  display_clear();
+  display_reset();
   for (int row = 0; row < DISPLAY_ROWS; row++) {
     char line[DISPLAY_COLS + 1];
     int len = 0;
@@ -70,6 +70,7 @@ static void renderPage() {
 
     display_print(row, line);
   }
+  display_flush();
 }
 
 void ereader_mode_start() {

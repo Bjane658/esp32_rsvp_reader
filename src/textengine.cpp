@@ -83,7 +83,7 @@ void te_save_position() {
 static uint32_t loadSavedPosition(const String& path) {
   char key[15];
   filePosKey(path, key, sizeof(key));
-  prefs.begin("rpos", true);
+  prefs.begin("rpos", false);  // read-write, creates namespace if missing
   uint32_t pos = prefs.getUInt(key, 0);
   prefs.end();
   return pos;
@@ -102,6 +102,7 @@ static void openFile(const String& path) {
       currentFile = path;
       display_clear();
       display_print(0, "Loading...");
+      display_flush();
       buildChapterIndex();
       prefs.begin("reader", false);
       prefs.putString("lastFile", path);
@@ -130,7 +131,7 @@ void te_setup() {
     LittleFS.format();
     LittleFS.begin(false);
   }
-  prefs.begin("reader", true);
+  prefs.begin("reader", false);  // false = read-write, creates namespace if missing
   String lastFile = prefs.getString("lastFile", "/text.txt");
   prefs.end();
   Serial.print("[TE] Restoring: ");
@@ -202,4 +203,5 @@ void te_show_preview() {
   preview[len] = '\0';
   te_seek_to(savedPos);
   display_print(0, preview);
+  display_flush();
 }
