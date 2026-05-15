@@ -9,7 +9,7 @@
 #include "wifimenu.h"
 #include "chapterpicker.h"
 
-static const int WPM_OPTIONS[] = {200, 300, 400};
+static const int WPM_OPTIONS[] = {150, 200, 300};
 static const int WPM_COUNT = 3;
 
 static bool open = false;
@@ -26,7 +26,7 @@ static bool fileChanged = false;
 #define ITEM_EXIT       5
 #define ITEM_COUNT      6
 
-#define MENU_ROWS    4
+#define MENU_ROWS    7
 
 int menu_get_wpm() {
   return WPM_OPTIONS[wpmIndex];

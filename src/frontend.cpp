@@ -89,14 +89,9 @@ static const char HTML_JSZIP_END[] = R"RSVP(
     console.log('[upload] XHR sent');
   }
 
-  function stripTags(html){
+  // Strip HTML tags and decode entities to plain text
+  function htmlToText(html){
     return html
-      .replace(/<h1[^>]*>/gi, '\n# ')
-      .replace(/<h2[^>]*>/gi, '\n## ')
-      .replace(/<\/h1>/gi, '\n')
-      .replace(/<\/h2>/gi, '\n')
-      .replace(/<p\s[^>]*class="[^"]*\bCN\b[^"]*"[^>]*>/gi, '\n# ')
-      .replace(/<p\s[^>]*class="[^"]*\bchapter[-_]?(?:number|num|head|title|name)?\b[^"]*"[^>]*>/gi, '\n# ')
       .replace(/<[^>]*>/g, ' ')
       .replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
@@ -106,23 +101,81 @@ static const char HTML_JSZIP_END[] = R"RSVP(
       .replace(/&#39;/g, "'")
       .replace(/[ \t]+/g, ' ')
       .replace(/\n[ \t]+/g, '\n')
-      .replace(/(^|\n)(#+) *\n+ */g, '$1$2 ')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
+  }
+
+  // Resolve a path relative to a base directory
+  function resolvePath(base, href){
+    var clean = href.split('?')[0].split('#')[0];
+    if(clean.indexOf('/') === 0) return clean.substring(1);
+    return base + clean;
+  }
+
+  // Extract the anchor fragment from an href
+  function anchorOf(href){
+    var i = href.indexOf('#');
+    return i >= 0 ? href.substring(i + 1) : '';
+  }
+
+  // Extract text from an HTML file starting at an anchor id, stopping at the next anchor id
+  // If startAnchor is empty, start from beginning. If endAnchor is empty, go to end.
+  function extractSlice(html, startAnchor, endAnchor){
+    var body = html;
+    // Grab body content if present
+    var bm = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    if(bm) body = bm[1];
+
+    if(startAnchor){
+      // Find the element with id=startAnchor
+      var re = new RegExp('<[^>]+\\bid=["\']' + startAnchor.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '["\'][^>]*>', 'i');
+      var idx = body.search(re);
+      if(idx >= 0) body = body.substring(idx);
+    }
+
+    if(endAnchor){
+      var re2 = new RegExp('<[^>]+\\bid=["\']' + endAnchor.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '["\'][^>]*>', 'i');
+      var idx2 = body.search(re2);
+      if(idx2 >= 0) body = body.substring(0, idx2);
+    }
+
+    return htmlToText(body);
+  }
+
+  // Parse toc.ncx and return [{title, file, anchor}] in playOrder
+  function parseNcx(ncxXml){
+    var entries = [];
+    var re = /<navPoint[^>]*playOrder="(\d+)"[^>]*>([\s\S]*?)<\/navPoint>/gi;
+    // ncx can be nested — flatten by just matching all navPoints
+    var allNp = [];
+    var m;
+    var npRe = /<navPoint[\s\S]*?<\/navPoint>/gi;
+    // Use a simpler line-by-line approach: find all navLabel/text + content src pairs
+    var labelRe = /<navLabel[^>]*>\s*<text[^>]*>([\s\S]*?)<\/text>/gi;
+    var srcRe   = /<content[^>]*\bsrc="([^"]+)"/gi;
+    var labels = [], srcs = [];
+    while((m = labelRe.exec(ncxXml)) !== null) labels.push(m[1].trim());
+    while((m = srcRe.exec(ncxXml))   !== null) srcs.push(m[1]);
+    for(var i = 0; i < Math.min(labels.length, srcs.length); i++){
+      var href = srcs[i];
+      entries.push({
+        title:  htmlToText(labels[i]),
+        file:   href.split('#')[0],
+        anchor: anchorOf(href)
+      });
+    }
+    return entries;
   }
 
   function parseEpub(arrayBuffer, filename){
     setStatus('Unpacking EPUB...');
     JSZip.loadAsync(arrayBuffer).then(function(zip){
 
-      // 1. Find OPF path from META-INF/container.xml
       return zip.file('META-INF/container.xml').async('string').then(function(containerXml){
-        console.log('[epub] container.xml:', containerXml.substring(0, 300));
         var m = containerXml.match(/full-path="([^"]+\.opf)"/i);
         if(!m) throw new Error('Cannot find OPF in container.xml');
         var opfPath = m[1];
         var opfDir  = opfPath.indexOf('/') >= 0 ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1) : '';
-        console.log('[epub] opfPath:', opfPath, 'opfDir:', opfDir);
         return zip.file(opfPath).async('string').then(function(opfXml){
           return { zip: zip, opfXml: opfXml, opfDir: opfDir };
         });
@@ -133,54 +186,131 @@ static const char HTML_JSZIP_END[] = R"RSVP(
       var opfXml = ctx.opfXml;
       var opfDir = ctx.opfDir;
 
-      console.log('[epub] opf snippet:', opfXml.substring(0, 500));
-
-      // 2. Build id→href map from manifest (attribute order-independent)
+      // Build id→href manifest
       var manifest = {};
-      var mRe = /<item\s[^>]+>/gi;
-      var m;
+      var manifestType = {};
+      var mRe = /<item\s[^>]+>/gi, m;
       while((m = mRe.exec(opfXml)) !== null){
-        var tag = m[0];
+        var tag   = m[0];
         var idM   = tag.match(/\bid="([^"]+)"/i);
         var hrefM = tag.match(/\bhref="([^"]+)"/i);
-        if(idM && hrefM) manifest[idM[1]] = hrefM[1];
+        var typeM = tag.match(/\bmedia-type="([^"]+)"/i);
+        var propM = tag.match(/\bproperties="([^"]+)"/i);
+        if(idM && hrefM){
+          manifest[idM[1]]     = hrefM[1];
+          manifestType[idM[1]] = (typeM ? typeM[1] : '') + '|' + (propM ? propM[1] : '');
+        }
       }
-      console.log('[epub] manifest keys:', Object.keys(manifest));
 
-      // 3. Read spine order
+      // Find toc.ncx or nav.xhtml
+      var ncxId = null, navId = null;
+      // OPF may reference NCX via <spine toc="...">
+      var spineTocM = opfXml.match(/<spine[^>]+\btoc="([^"]+)"/i);
+      if(spineTocM) ncxId = spineTocM[1];
+      for(var id in manifestType){
+        if(manifestType[id].indexOf('dtbncx') >= 0) ncxId = ncxId || id;
+        if(manifestType[id].indexOf('nav') >= 0)    navId = id;
+      }
+
+      // Spine order (fallback)
       var spineIds = [];
       var spineRe = /<itemref[^>]+idref="([^"]+)"/gi;
-      while((m = spineRe.exec(opfXml)) !== null){
-        spineIds.push(m[1]);
-      }
-      console.log('[epub] spineIds:', spineIds);
-
+      while((m = spineRe.exec(opfXml)) !== null) spineIds.push(m[1]);
       if(spineIds.length === 0) throw new Error('Empty spine in OPF');
 
-      // 4. Fetch chapters in order
-      setStatus('Converting ' + spineIds.length + ' chapters...');
-      var promises = spineIds.map(function(id){
+      // Spine href list in order (bare paths, no fragment)
+      var spineHrefs = spineIds.map(function(id){
         var href = manifest[id];
-        if(!href){ console.log('[epub] no href for id:', id); return Promise.resolve(''); }
-        var cleanHref = href.split('?')[0].split('#')[0];
-        var fullPath = opfDir + cleanHref;
+        return href ? href.split('?')[0].split('#')[0] : null;
+      }).filter(Boolean);
+
+      // Fetch all spine files into a map keyed by bare href
+      var spineFiles = {};
+      var fetchPromises = spineHrefs.map(function(href){
+        var fullPath = resolvePath(opfDir, href);
         var f = zip.file(fullPath);
-        console.log('[epub] chapter', id, '->', fullPath, f ? 'found' : 'MISSING');
-        if(!f) return Promise.resolve('');
-        return f.async('string');
+        if(!f) return Promise.resolve(null);
+        return f.async('string').then(function(html){ spineFiles[href] = html; });
       });
 
-      return Promise.all(promises).then(function(chapters){
-        console.log('[epub] chapters fetched:', chapters.length, 'total chars:', chapters.reduce(function(a,c){ return a+c.length; }, 0));
-        var text = chapters.map(function(html){ return stripTags(html); }).join('\n\n');
-        console.log('[epub] text length after strip:', text.length);
+      // Also fetch NCX if available
+      var ncxPromise = Promise.resolve(null);
+      if(ncxId && manifest[ncxId]){
+        var ncxPath = resolvePath(opfDir, manifest[ncxId]);
+        var ncxFile = zip.file(ncxPath);
+        if(ncxFile) ncxPromise = ncxFile.async('string');
+      }
+
+      return Promise.all([Promise.all(fetchPromises), ncxPromise]).then(function(results){
+        var ncxXml = results[1];
+
+        // Parse ToC entries from NCX
+        var tocEntries = ncxXml ? parseNcx(ncxXml) : [];
+        console.log('[epub] NCX entries:', tocEntries.length);
+
+        // If NCX has <= 1 entry, fall back to one entry per spine file
+        if(tocEntries.length <= 1){
+          console.log('[epub] falling back to spine');
+          tocEntries = spineHrefs.map(function(href){
+            return { title: '', file: href, anchor: '' };
+          });
+        }
+
+        setStatus('Building text from ' + tocEntries.length + ' ToC entries...');
+
+        // Build a spine index map: href -> position in spine
+        var spineIndex = {};
+        spineHrefs.forEach(function(href, i){ spineIndex[href] = i; });
+
+        var parts = tocEntries.map(function(entry, idx){
+          var startFile   = entry.file;
+          var startAnchor = entry.anchor;
+
+          // Next ToC entry determines where this chapter ends
+          var nextEntry   = tocEntries[idx + 1];
+          var endFile     = nextEntry ? nextEntry.file   : null;
+          var endAnchor   = nextEntry ? nextEntry.anchor : '';
+
+          var startIdx = spineIndex[startFile];
+          if(startIdx === undefined) return '';
+
+          // Collect all spine files from startFile up to (not including) endFile
+          var chunkHtml = '';
+          for(var si = startIdx; si < spineHrefs.length; si++){
+            var href = spineHrefs[si];
+            if(endFile && href === endFile && si !== startIdx){
+              // Last file of this chapter: slice up to endAnchor
+              var html = spineFiles[href];
+              if(html) chunkHtml += extractSlice(html, '', endAnchor);
+              break;
+            }
+            if(endFile && si > startIdx && spineIndex[endFile] !== undefined && si >= spineIndex[endFile]) break;
+            var html = spineFiles[href];
+            if(!html) continue;
+            if(si === startIdx){
+              chunkHtml += extractSlice(html, startAnchor, (endFile === startFile ? endAnchor : ''));
+            } else {
+              chunkHtml += '\n' + extractSlice(html, '', '');
+            }
+            // Stop if this was the last file before the next chapter's file
+            if(endFile && href !== endFile && spineHrefs[si + 1] === endFile && !endAnchor) break;
+          }
+
+          var text = chunkHtml.replace(/\n{3,}/g, '\n\n').trim();
+          if(!text) return '';
+          return entry.title ? '# ' + entry.title + '\n\n' + text : text;
+        });
+
+        var fullText = parts.filter(function(p){ return p.trim(); }).join('\n\n');
+        console.log('[epub] final text length:', fullText.length);
         var txtName = filename.replace(/\.epub$/i, '.txt');
-        var blob = new Blob([text], { type: 'text/plain' });
+        var blob = new Blob([fullText], { type: 'text/plain' });
         uploadBlob(blob, txtName);
       });
 
     }).catch(function(err){
       setStatus('EPUB error: ' + err.message);
+      console.error('[epub] error:', err);
       btn.disabled = false;
     });
   }

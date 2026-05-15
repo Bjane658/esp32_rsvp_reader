@@ -3,7 +3,7 @@
 #include "display.h"
 #include "textengine.h"
 
-#define DISPLAY_ROWS  4
+#define DISPLAY_ROWS  7
 
 static bool open         = false;
 static int  cursorPos    = 0;

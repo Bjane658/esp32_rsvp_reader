@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <esp_sleep.h>
+#include <Preferences.h>
 #include "reader.h"
 #include "textengine.h"
 #include "rsvp_mode.h"
@@ -9,7 +10,7 @@
 
 #define LONG_PRESS_MS        1000
 #define DOUBLE_CLICK_MS       400
-#define SLEEP_TIMEOUT_MS   20000UL  // 20 seconds (testing)
+#define SLEEP_TIMEOUT_MS  300000UL  // 5 minutes
 
 static unsigned long lastActivityTime = 0;
 
@@ -59,8 +60,23 @@ static void stopCurrentMode() {
   else                              ereader_mode_stop();
 }
 
+static void saveMode() {
+  Preferences p;
+  p.begin("reader", false);
+  p.putUChar("mode", (uint8_t)currentMode);
+  p.end();
+}
+
+static void loadMode() {
+  Preferences p;
+  p.begin("reader", true);
+  currentMode = (ReaderMode)p.getUChar("mode", (uint8_t)MODE_RSVP);
+  p.end();
+}
+
 void reader_setup() {
   te_setup();
+  loadMode();
   resetActivity();
   startCurrentMode();
 }
@@ -133,6 +149,12 @@ void reader_loop() {
     }
   }
 
+  // sleep when idle (reader stopped or in menu, no button activity)
+  bool readerRunning = (currentMode == MODE_RSVP) && rsvp_mode_is_running();
+  if (!readerRunning && (millis() - lastActivityTime > SLEEP_TIMEOUT_MS)) {
+    enterSleep();
+  }
+
   if (menu_is_open()) {
     menu_loop();
     return;
@@ -140,19 +162,12 @@ void reader_loop() {
 
   if (currentMode == MODE_RSVP)   rsvp_mode_loop();
   else                             ereader_mode_loop();
-
-  // sleep when idle and reader is not running
-  bool readerRunning = (currentMode == MODE_RSVP) && rsvp_mode_is_running();
-  if (!readerRunning && !menu_is_open()) {
-    if (millis() - lastActivityTime > SLEEP_TIMEOUT_MS) {
-      enterSleep();
-    }
-  }
 }
 
 void reader_toggle_mode() {
   stopCurrentMode();
   currentMode = (currentMode == MODE_RSVP) ? MODE_EREADER : MODE_RSVP;
+  saveMode();
   startCurrentMode();
 }
 
