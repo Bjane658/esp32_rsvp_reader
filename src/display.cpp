@@ -24,6 +24,7 @@ void display_print(int row, const char* text) {
   strncpy(buffer[row], text, sizeof(buffer[row]) - 1);
   buffer[row][sizeof(buffer[row]) - 1] = '\0';
 
+  Serial.println("----------------");
   for (int i = 0; i < DISPLAY_ROWS; i++) {
     if (buffer[i][0] == '\0') continue;
     if (i == cursorRow) Serial.print("> ");

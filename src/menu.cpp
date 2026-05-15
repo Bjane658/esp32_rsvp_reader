@@ -143,8 +143,8 @@ void menu_long_press() {
     return;
   }
   if (chapterpicker_is_open()) {
-    if (chapterpicker_long_press()) open = false;
-    else render();
+    chapterpicker_long_press();  // seek to chapter or Back — stay in menu either way
+    render();
     return;
   }
   switch (cursorPos) {
