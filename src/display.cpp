@@ -23,11 +23,15 @@ static void serial_dump() {
   }
 }
 
-static void hw_render() {
+static void ensure_fastmode() {
   if (!fastmodeActive) {
     display.fastmodeOn();
     fastmodeActive = true;
   }
+}
+
+static void hw_render() {
+  ensure_fastmode();
   display.clearMemory();
   display.landscape();
   for (int i = 0; i < DISPLAY_ROWS; i++) {
@@ -38,6 +42,17 @@ static void hw_render() {
     display.print(buffer[i]);
   }
   display.update();
+}
+
+static void hw_render_row(int row) {
+  ensure_fastmode();
+  int y = MARGIN_Y + row * LINE_HEIGHT;
+  display.setWindow(0, y, display.width(), LINE_HEIGHT);
+  display.setTextColor(BLACK);
+  display.setCursor(MARGIN_X, y + LINE_HEIGHT - 3);
+  display.print(buffer[row]);
+  display.update();
+  display.setWindow(0, 0, display.width(), display.height());
 }
 
 void display_setup() {
@@ -117,10 +132,13 @@ void display_word(const char* prev, const char* word, const char* next) {
 
   line[pos] = '\0';
 
+  int row = DISPLAY_ROWS / 2;
   for (int i = 0; i < DISPLAY_ROWS; i++)
     buffer[i][0] = '\0';
   cursorRow = -1;
-  strncpy(buffer[DISPLAY_ROWS / 2], line, sizeof(buffer[DISPLAY_ROWS / 2]) - 1);
+  strncpy(buffer[row], line, sizeof(buffer[row]) - 1);
 
-  display_flush();
+  Serial.print("  ");
+  Serial.println(line);
+  hw_render_row(row);
 }
