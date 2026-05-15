@@ -114,26 +114,21 @@ void menu_short_press() {
 
 void menu_double_press() {
   if (filepicker_is_open()) {
-    filepicker_cancel();
-    render();
+    filepicker_double_press();
     return;
   }
   if (wifimenu_is_open()) {
-    wifimenu_cancel();
+    wifimenu_short_press();  // only one item, up/down same effect
     render();
     return;
   }
   if (chapterpicker_is_open()) {
-    chapterpicker_cancel();
-    render();
+    chapterpicker_double_press();
     return;
   }
-  open = false;
-  if (fileChanged) {
-    rsvp_mode_show_preview();
-  } else {
-    rsvp_mode_show_current_word();
-  }
+  // main menu: cursor up
+  cursorPos = (cursorPos - 1 + ITEM_COUNT) % ITEM_COUNT;
+  render();
 }
 
 void menu_long_press() {
@@ -172,8 +167,6 @@ void menu_long_press() {
       open = false;
       if (ap_is_active()) {
         ap_stop();
-        te_reload_from_ap();
-        fileChanged = true;
       }
       if (fileChanged) {
         rsvp_mode_show_preview();

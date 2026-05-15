@@ -68,6 +68,13 @@ void chapterpicker_short_press() {
   render();
 }
 
+void chapterpicker_double_press() {
+  int count = te_get_chapter_count();
+  if (count == 0) return;
+  cursorPos = (cursorPos - 1 + count + 1) % (count + 1);
+  render();
+}
+
 void chapterpicker_cancel() {
   open = false;
 }

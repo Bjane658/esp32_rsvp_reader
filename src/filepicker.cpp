@@ -60,6 +60,11 @@ void filepicker_short_press() {
   render();
 }
 
+void filepicker_double_press() {
+  cursorPos = (cursorPos - 1 + fileCount + 1) % (fileCount + 1);
+  render();
+}
+
 void filepicker_cancel() {
   open = false;
 }

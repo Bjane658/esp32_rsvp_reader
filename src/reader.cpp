@@ -7,7 +7,7 @@
 #include "display.h"
 
 #define LONG_PRESS_MS   1000
-#define DOUBLE_CLICK_MS  300
+#define DOUBLE_CLICK_MS  400
 
 typedef enum { MODE_RSVP, MODE_EREADER } ReaderMode;
 static ReaderMode currentMode = MODE_RSVP;
@@ -77,7 +77,6 @@ void reader_loop() {
       } else {
         waitingForDouble = true;
         firstPressTime   = millis();
-        menu_short_press();
       }
     } else {
       // outside menu
@@ -98,10 +97,12 @@ void reader_loop() {
     }
   }
 
-  // double-click window expired
+  // double-click window expired → single press confirmed
   if (waitingForDouble && (millis() - firstPressTime > DOUBLE_CLICK_MS)) {
     waitingForDouble = false;
-    if (!menu_is_open()) {
+    if (menu_is_open()) {
+      menu_short_press();
+    } else {
       if (currentMode == MODE_RSVP) {
         rsvp_mode_set_running(true);
       } else {
