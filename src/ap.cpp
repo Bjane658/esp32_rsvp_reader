@@ -47,6 +47,14 @@ static void handleRoot() {
   server.sendContent("");  // flush / end chunked transfer
 }
 
+static void handleJszip() {
+  File f = LittleFS.open("/jszip.js", "r");
+  if (!f) { server.send(404, "text/plain", "jszip.js not found — reflash filesystem"); return; }
+  server.sendHeader("Cache-Control", "max-age=86400");
+  server.streamFile(f, "application/javascript");
+  f.close();
+}
+
 static File uploadFile;
 
 static void handleUploadData() {
@@ -110,10 +118,18 @@ void ap_start() {
   Serial.print("[AP] Open: http://");
   Serial.println(WiFi.softAPIP());
 
-  server.on("/", handleRoot);
-  server.on("/upload", HTTP_POST, handleUpload, handleUploadData);
-  server.on("/download", HTTP_GET, handleDownload);
-  server.on("/delete", HTTP_GET, handleDelete);
+  // Routes are registered once — server.stop() does not clear them,
+  // so re-registering on every ap_start() would stack duplicate handlers.
+  static bool routesRegistered = false;
+  if (!routesRegistered) {
+    server.on("/", handleRoot);
+    server.on("/jszip.js", HTTP_GET, handleJszip);
+    server.on("/upload", HTTP_POST, handleUpload, handleUploadData);
+    server.on("/download", HTTP_GET, handleDownload);
+    server.on("/delete", HTTP_GET, handleDelete);
+    routesRegistered = true;
+  }
+
   server.begin();
   active = true;
 }

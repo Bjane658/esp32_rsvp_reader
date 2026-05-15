@@ -7,6 +7,7 @@
 #include "ereader_mode.h"
 #include "menu.h"
 #include "display.h"
+#include "ap.h"
 
 #define LONG_PRESS_MS        1000
 #define DOUBLE_CLICK_MS       400
@@ -154,6 +155,11 @@ void reader_loop() {
   bool readerRunning = (currentMode == MODE_RSVP) && rsvp_mode_is_running();
   if (!readerRunning && (millis() - lastActivityTime > SLEEP_TIMEOUT_MS)) {
     enterSleep();
+  }
+
+  if (ap_is_active()) {
+    ap_loop();
+    return;
   }
 
   if (menu_is_open()) {
