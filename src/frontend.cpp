@@ -281,7 +281,13 @@ static const char HTML_JSZIP_END[] = R"RSVP(
 
           var text = chunkHtml.replace(/\n{3,}/g, '\n\n').trim();
           if(!text) return '';
-          return entry.title ? '# ' + entry.title + '\n\n' + text : text;
+          if(entry.title){
+            // Remove duplicate title line at start of body (epub often repeats it)
+            var escaped = entry.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            text = text.replace(new RegExp('^' + escaped + '\\s*', 'i'), '').trim();
+            return '# ' + entry.title + '\n\n' + text;
+          }
+          return text;
         });
 
         var fullText = parts.filter(function(p){ return p.trim(); }).join('\n\n');

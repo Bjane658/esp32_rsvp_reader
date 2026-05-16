@@ -24,6 +24,7 @@ size_t      te_current_pos();
 // Chapter index
 const Chapter* te_get_chapters();
 int            te_get_chapter_count();
+size_t         te_file_size();
 
 // Persist / restore position in NVS
 void        te_save_position();

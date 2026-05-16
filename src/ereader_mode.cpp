@@ -26,41 +26,43 @@ static bool historyPop(size_t* out) {
   return true;
 }
 
-// Render DISPLAY_ROWS lines of wrapped text from current file position.
-// Advances the file cursor to just past the last char rendered.
 static void renderPage() {
+  int rows = display_rows();
+  int cols = display_cols();
   display_reset();
-  for (int row = 0; row < DISPLAY_ROWS; row++) {
-    char line[DISPLAY_COLS + 1];
+
+  // Progress within current chapter (falls back to whole-file if no chapters)
+  size_t pageStart = te_current_pos();
+  const Chapter* chapters = te_get_chapters();
+  int chapterCount = te_get_chapter_count();
+  size_t chStart = 0, chEnd = te_file_size();
+  for (int i = 0; i < chapterCount; i++) {
+    if (chapters[i].offset <= pageStart) chStart = chapters[i].offset;
+    if (chapters[i].offset > pageStart && chEnd == te_file_size()) chEnd = chapters[i].offset;
+  }
+  float fraction = (chEnd > chStart) ? (float)(pageStart - chStart) / (float)(chEnd - chStart) : 0.0f;
+  display_set_progress(fraction);
+  for (int row = 0; row < rows; row++) {
+    char line[29]; // MAX_COLS + 1
     int len = 0;
     int c;
 
-    // skip leading newlines between paragraphs (keep spaces for indentation)
     while ((c = te_read_char()) != -1 && c == '\n');
-    if (c == -1) {
-      // end of file — leave remaining rows blank
-      break;
-    }
-    // first non-newline char
-    line[len++] = (char)c;
+    if (c == -1) break;
 
-    // fill up to DISPLAY_COLS
-    while (len < DISPLAY_COLS) {
+    line[len++] = (char)c;
+    while (len < cols) {
       c = te_read_char();
       if (c == -1 || c == '\n') break;
       line[len++] = (char)c;
     }
     line[len] = '\0';
 
-    // if we stopped mid-word and there's more content, backtrack to word boundary
-    if (c != -1 && c != '\n' && len == DISPLAY_COLS) {
-      // check if last char and next char are both word chars (mid-word break)
+    if (c != -1 && c != '\n' && len == cols) {
       if (line[len - 1] != ' ') {
-        // walk back to last space
         int cut = len - 1;
         while (cut > 0 && line[cut] != ' ') cut--;
         if (cut > 0) {
-          // seek back the chars we're dropping
           size_t rewind = len - cut;
           te_seek_to(te_current_pos() - rewind);
           line[cut] = '\0';
@@ -76,6 +78,7 @@ static void renderPage() {
 void ereader_mode_start() {
   historyHead  = 0;
   historyCount = 0;
+  display_set_font(FONT_SMALL);
   historyPush(te_current_pos());
   renderPage();
 }
@@ -92,14 +95,15 @@ void ereader_mode_short_press() {
   size_t pos = te_current_pos();
   historyPush(pos);
   renderPage();
+  te_save_position();
 }
 
 void ereader_mode_double_press() {
   size_t prev;
-  // pop twice: once for current page, once for the one before it
   historyPop(&prev); // discard current
   if (!historyPop(&prev)) prev = 0;
   te_seek_to(prev);
   historyPush(prev);
   renderPage();
+  te_save_position();
 }

@@ -37,6 +37,7 @@ void rsvp_mode_show_preview() {
 
 void rsvp_mode_start() {
   running = false;
+  display_set_font(FONT_LARGE);
   clearLastWords();
   te_show_preview();
 }

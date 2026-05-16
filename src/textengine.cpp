@@ -60,6 +60,7 @@ static void buildChapterIndex() {
 
 const Chapter* te_get_chapters()     { return chapterIndex; }
 int            te_get_chapter_count() { return chapterCount; }
+size_t         te_file_size()         { return textFile ? textFile.size() : 0; }
 
 // ── Position persistence ──────────────────────────────────────────────────────
 
@@ -191,8 +192,10 @@ static void skip_utf8_tail(int leading) {
   for (int i = 0; i < tail; i++) read_raw();
 }
 
-// Read one UTF-8 codepoint and map it to a printable ASCII character.
-// Returns -1 on EOF, or the ASCII replacement.
+// Read one UTF-8 codepoint, return as Latin-1 byte (0x20–0xFF) or ASCII.
+// The DejaVuSans font covers U+0020–U+00FF (Latin-1), so codepoints in that
+// range are returned as their single-byte Latin-1 value directly.
+// Codepoints outside Latin-1 are mapped to close ASCII equivalents or '?'.
 int te_read_char() {
   int b = read_raw();
   if (b == -1) return -1;
@@ -200,12 +203,12 @@ int te_read_char() {
   // Plain ASCII — pass through
   if (b < 0x80) return b;
 
-  // Multi-byte sequence: collect up to 3 continuation bytes
+  // Multi-byte sequence
   int tail = 0;
   if      ((b & 0xE0) == 0xC0) tail = 1;
   else if ((b & 0xF0) == 0xE0) tail = 2;
   else if ((b & 0xF8) == 0xF0) tail = 3;
-  else return '?'; // stray continuation byte
+  else return '?';
 
   uint32_t cp = b & (0x7F >> tail);
   for (int i = 0; i < tail; i++) {
@@ -214,16 +217,20 @@ int te_read_char() {
     cp = (cp << 6) | (cb & 0x3F);
   }
 
-  // Map common Unicode punctuation to ASCII equivalents
+  // Latin-1 supplement (U+00A0–U+00FF) — font has these glyphs, return directly
+  if (cp >= 0x00A0 && cp <= 0x00FF) {
+    if (cp == 0x00AD) return ' '; // soft hyphen
+    return (int)cp;
+  }
+
+  // Common typographic characters outside Latin-1 — map to closest Latin-1
   switch (cp) {
-    case 0x2018: case 0x2019: case 0x201A: case 0x201B: return '\''; // curly single quotes
-    case 0x201C: case 0x201D: case 0x201E: case 0x201F: return '"';  // curly double quotes
-    case 0x2013: return '-';   // en dash
-    case 0x2014: return '-';   // em dash
-    case 0x2026: return '.';   // ellipsis
-    case 0x00A0: return ' ';   // non-breaking space
-    case 0x00AD: return ' ';   // soft hyphen — treat as space
-    case 0x2002: case 0x2003: case 0x2009: return ' '; // various spaces
+    case 0x2018: case 0x2019: case 0x201A: case 0x201B: return '\'' ;
+    case 0x201C: case 0x201D: case 0x201E: case 0x201F: return '"';
+    case 0x2013: return 0x2D;  // en dash → hyphen
+    case 0x2014: return 0x2D;  // em dash → hyphen
+    case 0x2026: return 0x85;  // ellipsis → U+0085 (next line, but font has … at 0x85) -- fallback
+    case 0x2002: case 0x2003: case 0x2009: case 0x00A0: return ' ';
     default:     return '?';
   }
 }

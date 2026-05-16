@@ -32,11 +32,11 @@ static void scan() {
 static void render() {
   int total = fileCount + 1; // +1 for Back
   if (cursorPos < scrollOffset) scrollOffset = cursorPos;
-  if (cursorPos >= scrollOffset + DISPLAY_ROWS) scrollOffset = cursorPos - DISPLAY_ROWS + 1;
+  if (cursorPos >= scrollOffset + display_rows()) scrollOffset = cursorPos - display_rows() + 1;
 
   display_reset();
   display_cursor(cursorPos - scrollOffset);
-  for (int i = scrollOffset; i < scrollOffset + DISPLAY_ROWS && i < total; i++) {
+  for (int i = scrollOffset; i < scrollOffset + display_rows() && i < total; i++) {
     if (i < fileCount) display_print(i - scrollOffset, files[i]);
     else               display_print(i - scrollOffset, "< Back");
   }

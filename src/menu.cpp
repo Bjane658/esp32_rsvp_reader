@@ -26,8 +26,6 @@ static bool fileChanged = false;
 #define ITEM_EXIT       5
 #define ITEM_COUNT      6
 
-#define MENU_ROWS    7
-
 int menu_get_wpm() {
   return WPM_OPTIONS[wpmIndex];
 }
@@ -70,13 +68,13 @@ static void item_label(int item, char* buf, size_t len) {
 
 static void render() {
   if (cursorPos < scrollOffset) scrollOffset = cursorPos;
-  if (cursorPos >= scrollOffset + MENU_ROWS) scrollOffset = cursorPos - MENU_ROWS + 1;
+  if (cursorPos >= scrollOffset + display_rows()) scrollOffset = cursorPos - display_rows() + 1;
 
   display_reset();
   display_cursor(cursorPos - scrollOffset);
 
   char label[40];
-  for (int i = scrollOffset; i < scrollOffset + MENU_ROWS && i < ITEM_COUNT; i++) {
+  for (int i = scrollOffset; i < scrollOffset + display_rows() && i < ITEM_COUNT; i++) {
     item_label(i, label, sizeof(label));
     display_print(i - scrollOffset, label);
   }
@@ -92,6 +90,7 @@ void menu_open() {
   cursorPos = 0;
   scrollOffset = 0;
   fileChanged = false;
+  display_set_font(FONT_SMALL);
   render();
 }
 
