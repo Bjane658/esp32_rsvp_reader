@@ -106,17 +106,96 @@ void ereader_mode_loop() {
   // page mode is event-driven, nothing to do per tick
 }
 
+void ereader_mode_reset_history() {
+  historyHead  = 0;
+  historyCount = 0;
+}
+
+void ereader_mode_show_page() {
+  historyPush(te_current_pos());
+  renderPage();
+}
+
 void ereader_mode_short_press() {
-  size_t pos = te_current_pos();
-  historyPush(pos);
+  historyPush(te_current_pos());
   renderPage();
   te_save_position();
 }
 
+// Simulate renderPage() without drawing; return position after the last char consumed.
+static size_t probePageEnd(size_t from) {
+  te_seek_to(from);
+  int rows = display_rows();
+  int lineWidthPx = display_line_width_px();
+  for (int row = 0; row < rows; row++) {
+    int c;
+    while ((c = te_read_char()) != -1 && c == '\n');
+    if (c == -1) break;
+    int px = display_char_width_px((unsigned char)c);
+    while (true) {
+      size_t posBefore = te_current_pos();
+      c = te_read_char();
+      if (c == -1 || c == '\n') break;
+      int w = display_char_width_px((unsigned char)c);
+      if (px + w > lineWidthPx) { te_seek_to(posBefore); break; }
+      px += w;
+    }
+  }
+  return te_current_pos();
+}
+
+// Find the start of the page that ends at or just before `target`.
+// Steps back in chunks, snaps to a line boundary, then probes forward.
+static size_t findPrevPageStart(size_t currentPageStart) {
+  if (currentPageStart == 0) return 0;
+
+  // Estimate: 5 rows * ~28 chars * ~5 bytes/char average = ~700 bytes,
+  // but real pages are much smaller; 300 is a safe starting step.
+  const size_t STEP = 300;
+  size_t searchFrom = currentPageStart > STEP ? currentPageStart - STEP : 0;
+
+  // Snap back to start of a line (after a newline or file start)
+  while (searchFrom > 0) {
+    te_seek_to(searchFrom - 1);
+    int c = te_read_char();
+    if (c == '\n') break;
+    searchFrom--;
+  }
+
+  // Probe forward from searchFrom: find the largest candidate whose page ends
+  // at or before currentPageStart.
+  size_t bestStart = searchFrom;
+  size_t pos = searchFrom;
+  while (pos < currentPageStart) {
+    size_t end = probePageEnd(pos);
+    if (end <= currentPageStart) bestStart = pos;
+    if (end >= currentPageStart) break;
+    // Next candidate: skip to after the newline that ends the first line of this page
+    te_seek_to(pos);
+    int c;
+    // skip past first line
+    while ((c = te_read_char()) != -1 && c != '\n');
+    size_t next = te_current_pos();
+    if (next <= pos) break; // safety: no forward progress
+    pos = next;
+  }
+
+  return bestStart;
+}
+
 void ereader_mode_double_press() {
+  size_t currentStart;
+  historyPop(&currentStart);
+
   size_t prev;
-  historyPop(&prev); // discard current
-  if (!historyPop(&prev)) prev = 0;
+  if (historyCount > 0) {
+    // We have a real history entry — use it
+    historyPop(&prev);
+  } else {
+    // No history: compute previous page geometrically
+    prev = findPrevPageStart(currentStart);
+  }
+
   te_seek_to(prev);
   historyPush(prev);
   renderPage();

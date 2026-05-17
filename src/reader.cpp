@@ -180,6 +180,10 @@ void reader_toggle_mode() {
   startCurrentMode();
 }
 
+bool reader_is_ereader_mode() {
+  return currentMode == MODE_EREADER;
+}
+
 const char* reader_get_mode_name() {
   return (currentMode == MODE_RSVP) ? "RSVP" : "EReader";
 }

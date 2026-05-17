@@ -4,6 +4,7 @@
 #include "ap.h"
 #include "textengine.h"
 #include "rsvp_mode.h"
+#include "ereader_mode.h"
 #include "reader.h"
 #include "filepicker.h"
 #include "wifimenu.h"
@@ -145,7 +146,7 @@ void menu_long_press() {
     return;
   }
   if (chapterpicker_is_open()) {
-    chapterpicker_long_press();  // seek to chapter or Back — stay in menu either way
+    if (chapterpicker_long_press()) ereader_mode_reset_history();
     render();
     return;
   }
@@ -170,7 +171,9 @@ void menu_long_press() {
       if (ap_is_active()) {
         ap_stop();
       }
-      if (fileChanged) {
+      if (reader_is_ereader_mode()) {
+        ereader_mode_show_page();
+      } else if (fileChanged) {
         rsvp_mode_show_preview();
       } else {
         rsvp_mode_show_current_word();
