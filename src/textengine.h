@@ -24,6 +24,8 @@ size_t      te_current_pos();
 // Chapter index
 const Chapter* te_get_chapters();
 int            te_get_chapter_count();
+bool           te_is_indexing();   // true while background scan is in progress
+void           te_index_tick();    // call from main loop to advance the scan
 size_t         te_file_size();
 
 // Persist / restore position in NVS

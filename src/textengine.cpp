@@ -27,36 +27,56 @@ static const char* fallbackCursor = nullptr;
 static Chapter chapterIndex[TE_MAX_CHAPTERS];
 static int     chapterCount = 0;
 
-// ── Chapter index ─────────────────────────────────────────────────────────────
+// ── Background chapter index ──────────────────────────────────────────────────
 
-static void buildChapterIndex() {
+static File   indexFile;
+static bool   indexing    = false;
+static int    indexPrev   = '\0';
+
+#define INDEX_BYTES_PER_TICK 256
+
+static void startIndexing() {
   chapterCount = 0;
-  if (currentFile.isEmpty()) return;
-  File f = LittleFS.open(currentFile, "r");
-  if (!f) return;
-  int prev = '\0';
+  indexPrev    = '\0';
+  if (indexFile) indexFile.close();
+  if (currentFile.isEmpty()) { indexing = false; return; }
+  indexFile = LittleFS.open(currentFile, "r");
+  indexing  = indexFile ? true : false;
+}
+
+void te_index_tick() {
+  if (!indexing) return;
+
+  int processed = 0;
   int c;
-  while ((c = f.read()) != -1 && chapterCount < TE_MAX_CHAPTERS) {
-    if (c == '#' && (prev == '\n' || prev == '\0')) {
-      size_t headingStart = f.position() - 1;
-      int next = f.read();
-      if (next != ' ') { prev = next; continue; }
-      while ((c = f.read()) != -1 && c == ' ');
+  while (processed++ < INDEX_BYTES_PER_TICK && chapterCount < TE_MAX_CHAPTERS) {
+    c = indexFile.read();
+    if (c == -1) { indexFile.close(); indexing = false; return; }
+    if (c == '#' && (indexPrev == '\n' || indexPrev == '\0')) {
+      size_t headingStart = indexFile.position() - 1;
+      int next = indexFile.read();
+      processed++;
+      if (next != ' ') { indexPrev = next; continue; }
+      while ((c = indexFile.read()) != -1 && c == ' ') processed++;
       char title[TE_MAX_TITLE];
       int len = 0;
       while (c != -1 && c != '\n' && c != '\r' && len < TE_MAX_TITLE - 1) {
         title[len++] = (char)c;
-        c = f.read();
+        c = indexFile.read();
+        processed++;
       }
       title[len] = '\0';
       chapterIndex[chapterCount].offset = headingStart;
       strncpy(chapterIndex[chapterCount].title, title, TE_MAX_TITLE);
       chapterCount++;
+      indexPrev = c;
+      continue;
     }
-    prev = c;
+    indexPrev = c;
   }
-  f.close();
 }
+
+bool te_is_indexing() { return indexing; }
 
 const Chapter* te_get_chapters()     { return chapterIndex; }
 int            te_get_chapter_count() { return chapterCount; }
@@ -101,24 +121,21 @@ static void openFile(const String& path) {
     textFile = LittleFS.open(path, "r");
     if (textFile) {
       currentFile = path;
-      display_clear();
-      display_print(0, "Loading...");
-      display_flush();
-      buildChapterIndex();
       prefs.begin("reader", false);
       prefs.putString("lastFile", path);
       prefs.end();
       uint32_t savedPos = loadSavedPosition(path);
       te_seek_to((size_t)savedPos);
+      startIndexing();
       Serial.print("[TE] Opened: ");
       Serial.println(path);
-      Serial.print("[TE] Chapters: ");
-      Serial.print(chapterCount);
-      Serial.print(" @ ");
+      Serial.print("[TE] Saved pos: ");
       Serial.println(savedPos);
       return;
     }
   }
+  if (indexFile) { indexFile.close(); }
+  indexing         = false;
   usingFallback    = true;
   fallbackCursor   = FALLBACK_TEXT;
   currentFile      = "";

@@ -35,7 +35,9 @@ static void item_label(int item, char* buf, size_t len) {
     case ITEM_CHAPTER: {
       const Chapter* chapters = te_get_chapters();
       int count = te_get_chapter_count();
-      if (count == 0) {
+      if (te_is_indexing() && count == 0) {
+        snprintf(buf, len, "Chapter: Loading...");
+      } else if (count == 0) {
         snprintf(buf, len, "Chapter >");
       } else {
         size_t pos = te_current_pos();

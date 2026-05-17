@@ -157,6 +157,8 @@ void reader_loop() {
     enterSleep();
   }
 
+  te_index_tick();
+
   if (ap_is_active()) {
     ap_loop();
     return;

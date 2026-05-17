@@ -23,7 +23,8 @@ static int findCurrentChapter() {
 static void render() {
   const Chapter* chapters = te_get_chapters();
   int count = te_get_chapter_count();
-  int total = count + 1; // +1 for Back
+  bool scanning = te_is_indexing();
+  int total = count + 1 + (scanning ? 1 : 0); // chapters + Back [+ Scanning...]
 
   if (cursorPos < scrollOffset) scrollOffset = cursorPos;
   if (cursorPos >= scrollOffset + display_rows()) scrollOffset = cursorPos - display_rows() + 1;
@@ -32,7 +33,9 @@ static void render() {
   display_cursor(cursorPos - scrollOffset);
 
   for (int i = scrollOffset; i < scrollOffset + display_rows() && i < total; i++) {
-    if (i == count) {
+    if (scanning && i == count) {
+      display_print(i - scrollOffset, "Scanning...");
+    } else if (i == count + (scanning ? 1 : 0)) {
       display_print(i - scrollOffset, "< Back");
     } else {
       char label[TE_MAX_TITLE + 2];
@@ -48,11 +51,11 @@ static void render() {
 }
 
 void chapterpicker_open() {
-  if (te_get_chapter_count() == 0) return;
+  if (te_get_chapter_count() == 0 && !te_is_indexing()) return;
   currentChapter = findCurrentChapter();
   cursorPos      = currentChapter;
   scrollOffset   = 0;
-  isOpen           = true;
+  isOpen         = true;
   render();
 }
 
@@ -62,15 +65,15 @@ bool chapterpicker_is_open() {
 
 void chapterpicker_short_press() {
   int count = te_get_chapter_count();
-  if (count == 0) return;
-  cursorPos = (cursorPos + 1) % (count + 1);
+  int total = count + 1 + (te_is_indexing() ? 1 : 0);
+  cursorPos = (cursorPos + 1) % total;
   render();
 }
 
 void chapterpicker_double_press() {
   int count = te_get_chapter_count();
-  if (count == 0) return;
-  cursorPos = (cursorPos - 1 + count + 1) % (count + 1);
+  int total = count + 1 + (te_is_indexing() ? 1 : 0);
+  cursorPos = (cursorPos - 1 + total) % total;
   render();
 }
 
@@ -82,9 +85,10 @@ bool chapterpicker_long_press() {
   isOpen = false;
   const Chapter* chapters = te_get_chapters();
   int count = te_get_chapter_count();
+  // "Scanning..." sits at index `count` when active; Back is always last
   if (cursorPos < count) {
     te_seek(chapters[cursorPos].offset);
     return true;
   }
-  return false; // Back selected
+  return false; // Scanning... or Back selected
 }
