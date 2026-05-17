@@ -35,6 +35,16 @@ static int cursorRow = -1;
 
 int display_cols() { return FONTS[currentFont].cols; }
 int display_rows() { return FONTS[currentFont].rows; }
+int display_line_width_px() { return display.width() - MARGIN_X * 2; }
+
+int display_char_width_px(unsigned char c) {
+  const GFXfont* font = FONTS[currentFont].gfx;
+  uint8_t first = pgm_read_byte(&font->first);
+  uint8_t last  = pgm_read_byte(&font->last);
+  if (c < first || c > last) return 0;
+  GFXglyph* glyph = &(((GFXglyph*)pgm_read_ptr(&font->glyph))[c - first]);
+  return pgm_read_byte(&glyph->xAdvance);
+}
 
 static void serial_dump() {
   const FontConfig& fc = FONTS[currentFont];

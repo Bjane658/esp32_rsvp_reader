@@ -8,6 +8,8 @@ typedef enum {
 // Grid dims vary by font — query at runtime
 int display_cols();
 int display_rows();
+int display_line_width_px();                  // usable pixel width for text
+int display_char_width_px(unsigned char c);   // pixel advance width of one character
 
 void display_setup();
 void display_set_font(DisplayFont f);

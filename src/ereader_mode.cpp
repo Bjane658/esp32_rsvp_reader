@@ -5,6 +5,7 @@
 
 // Ring buffer of page-start positions for going back
 #define PAGE_HISTORY 8
+#define MAX_LINE     40  // generous upper bound; pixel-width check is the real limit
 static size_t pageHistory[PAGE_HISTORY];
 static int    historyHead = 0;  // index of the oldest entry
 static int    historyCount = 0;
@@ -28,7 +29,6 @@ static bool historyPop(size_t* out) {
 
 static void renderPage() {
   int rows = display_rows();
-  int cols = display_cols();
   display_reset();
 
   // Progress within current chapter (falls back to whole-file if no chapters)
@@ -42,31 +42,46 @@ static void renderPage() {
   }
   float fraction = (chEnd > chStart) ? (float)(pageStart - chStart) / (float)(chEnd - chStart) : 0.0f;
   display_set_progress(fraction);
+  int lineWidthPx = display_line_width_px();
   for (int row = 0; row < rows; row++) {
-    char line[29]; // MAX_COLS + 1
+    char line[MAX_LINE + 1];
+    size_t linePos[MAX_LINE + 1]; // file pos before each char was read
     int len = 0;
     int c;
 
+    // skip leading newlines
     while ((c = te_read_char()) != -1 && c == '\n');
     if (c == -1) break;
 
+    // accumulate characters until pixel width is exhausted
+    linePos[0] = te_current_pos(); // pos after first char
+    int px = display_char_width_px((unsigned char)c);
     line[len++] = (char)c;
-    while (len < cols) {
+
+    while (len < MAX_LINE) {
+      size_t posBefore = te_current_pos();
       c = te_read_char();
       if (c == -1 || c == '\n') break;
+      int w = display_char_width_px((unsigned char)c);
+      if (px + w > lineWidthPx) {
+        te_seek_to(posBefore);
+        c = -2; // sentinel: stopped due to width
+        break;
+      }
+      linePos[len] = posBefore;
       line[len++] = (char)c;
+      px += w;
     }
     line[len] = '\0';
 
-    if (c != -1 && c != '\n' && len == cols) {
-      if (line[len - 1] != ' ') {
-        int cut = len - 1;
-        while (cut > 0 && line[cut] != ' ') cut--;
-        if (cut > 0) {
-          size_t rewind = len - cut;
-          te_seek_to(te_current_pos() - rewind);
-          line[cut] = '\0';
-        }
+    // if we stopped mid-word, back up to last space boundary
+    if (c == -2 && len > 0 && line[len - 1] != ' ') {
+      int cut = len - 1;
+      while (cut > 0 && line[cut] != ' ') cut--;
+      if (cut > 0) {
+        // seek to position after the space so the next page starts clean
+        te_seek_to(linePos[cut + 1]);
+        line[cut] = '\0';
       }
     }
 
