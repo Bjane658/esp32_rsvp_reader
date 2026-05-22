@@ -118,8 +118,8 @@ void ereader_mode_show_page() {
 
 void ereader_mode_short_press() {
   historyPush(te_current_pos());
+  te_save_position();  // save page start before renderPage() advances the cursor
   renderPage();
-  te_save_position();
 }
 
 // Simulate renderPage() without drawing; return position after the last char consumed.
@@ -198,6 +198,6 @@ void ereader_mode_double_press() {
 
   te_seek_to(prev);
   historyPush(prev);
+  te_save_position();  // save page start before renderPage() advances the cursor
   renderPage();
-  te_save_position();
 }

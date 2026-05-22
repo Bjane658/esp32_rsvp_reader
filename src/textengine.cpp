@@ -96,9 +96,11 @@ void te_save_position() {
   if (usingFallback || currentFile.isEmpty()) return;
   char key[15];
   filePosKey(currentFile, key, sizeof(key));
+  size_t pos = te_current_pos();
   prefs.begin("rpos", false);
-  prefs.putUInt(key, (uint32_t)te_current_pos());
+  prefs.putUInt(key, (uint32_t)pos);
   prefs.end();
+  Serial.printf("[TE] Saved pos: %u\n", (unsigned)pos);
 }
 
 static uint32_t loadSavedPosition(const String& path) {

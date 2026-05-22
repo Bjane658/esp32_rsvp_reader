@@ -21,7 +21,6 @@ static void resetActivity() {
 }
 
 void reader_sleep() {
-  te_save_position();
   display_clear();
   display_set_font(FONT_SMALL);
 
