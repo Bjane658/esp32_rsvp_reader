@@ -1,0 +1,48 @@
+name: Build and release firmware
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio/libdeps
+          key: pio-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Write secrets.ini
+        run: |
+          cat > secrets.ini << 'EOF'
+          [secrets]
+          build_flags =
+              -DAP_PASSWORD='"${{ secrets.AP_PASSWORD }}"'
+              -DOTA_SSID='"${{ secrets.OTA_SSID }}"'
+              -DOTA_PASSWORD='"${{ secrets.OTA_PASSWORD }}"'
+          EOF
+
+      - name: Build firmware
+        run: pio run -e heltec_wireless_paper
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest firmware
+          prerelease: false
+          files: .pio/build/heltec_wireless_paper/firmware.bin
