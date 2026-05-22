@@ -132,8 +132,9 @@ void display_print(int row, const char* text) {
   int rows = FONTS[currentFont].rows;
   int cols = FONTS[currentFont].cols;
   if (row < 0 || row >= rows) return;
-  strncpy(buffer[row], text, cols);
-  buffer[row][cols] = '\0';
+  int limit = (row == cursorRow) ? cols - 2 : cols;
+  strncpy(buffer[row], text, limit);
+  buffer[row][limit] = '\0';
 }
 
 void display_cursor(int row) {
