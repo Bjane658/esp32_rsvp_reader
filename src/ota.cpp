@@ -4,6 +4,7 @@
 #include <Update.h>
 #include "ota.h"
 #include "display.h"
+#include "version.h"
 
 #define OTA_FIRMWARE_URL "https://github.com/Bjane658/esp32_rsvp_reader/releases/download/latest/firmware.bin"
 #define BOOT_BUTTON      0
@@ -102,7 +103,9 @@ void ota_run() {
   if (size > 0) snprintf(sizeBuf, sizeof(sizeBuf), "%d KB", size / 1024);
   else          snprintf(sizeBuf, sizeof(sizeBuf), "unknown size");
 
-  show("Update found!", sizeBuf, "Long: install", "Short: abort");
+  char verBuf[32];
+  snprintf(verBuf, sizeof(verBuf), "On device: %s", FW_VERSION);
+  show("Update found!", verBuf, "Long: install", "Short: abort");
 
   bool install = wait_for_button();
 

@@ -5,15 +5,17 @@
 #include "reader.h"
 #include "wifimenu.h"
 #include "ota.h"
+#include "version.h"
 
 static const int WPM_OPTIONS[] = {150, 200, 300};
 static const int WPM_COUNT = 3;
 
-#define SITEM_WPM    0
-#define SITEM_MODE   1
-#define SITEM_WIFI   2
-#define SITEM_OTA    3
-#define SITEM_COUNT  4
+#define SITEM_WPM     0
+#define SITEM_MODE    1
+#define SITEM_WIFI    2
+#define SITEM_OTA     3
+#define SITEM_VERSION 4
+#define SITEM_COUNT   5
 
 static bool isOpen = false;
 static int cursorPos = 0;
@@ -27,7 +29,8 @@ static void item_label(int item, char* buf, size_t len) {
     case SITEM_WPM:  snprintf(buf, len, "WPM: %d", WPM_OPTIONS[menu_wpm_index]); break;
     case SITEM_MODE: snprintf(buf, len, "Mode: %s", reader_get_mode_name()); break;
     case SITEM_WIFI: snprintf(buf, len, ap_is_active() ? "WiFi AP: ON >" : "WiFi AP: OFF >"); break;
-    case SITEM_OTA:  snprintf(buf, len, "Update firmware"); break;
+    case SITEM_OTA:     snprintf(buf, len, "Update firmware"); break;
+    case SITEM_VERSION: snprintf(buf, len, "v: %s", FW_VERSION); break;
   }
 }
 
@@ -102,6 +105,8 @@ void settingsmenu_long_press() {
       if (ap_is_active()) ap_stop();
       ota_run();
       return;
+    case SITEM_VERSION:
+      break;  // read-only
   }
   render();
 }
