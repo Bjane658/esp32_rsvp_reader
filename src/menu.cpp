@@ -89,7 +89,7 @@ static void item_label(int item, char* buf, size_t len) {
       }
       break;
     }
-    case ITEM_SETTINGS: snprintf(buf, len, "Settings >"); break;
+    case ITEM_SETTINGS: snprintf(buf, len, "Settings"); break;
     case ITEM_EXIT:     snprintf(buf, len, "Exit"); break;
     case ITEM_BATTERY: {
       int pct = battery_pct();
