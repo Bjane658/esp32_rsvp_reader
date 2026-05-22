@@ -10,6 +10,33 @@
 #include "wifimenu.h"
 #include "chapterpicker.h"
 
+// Wireless Paper v1.x: GPIO20 = battery ADC (ADC2), GPIO19 = enable (active LOW)
+// ADC2 conflicts with WiFi on ESP32-S3, so we cache the last reading taken without WiFi.
+#define BAT_ADC_PIN   20
+#define BAT_CTRL_PIN  19
+
+static int cachedBatPct = -1;
+
+static int battery_pct() {
+  if (ap_is_active()) {
+    return cachedBatPct >= 0 ? cachedBatPct : -1;  // can't read ADC2 while WiFi is up
+  }
+  pinMode(BAT_CTRL_PIN, OUTPUT);
+  digitalWrite(BAT_CTRL_PIN, LOW);   // enable measurement
+  delay(5);
+  int raw = analogRead(BAT_ADC_PIN);
+  digitalWrite(BAT_CTRL_PIN, HIGH);  // disable to save power
+  // voltage divider: VBAT → 390kΩ → GPIO20 → 100kΩ → GND  →  ratio = 100/490 ≈ 0.204
+  // ADC full scale: 4095 → 3.3 V  →  VBAT = adc_v / 0.204
+  float volts = (raw / 4095.0f) * 3.3f / (100.0f / 490.0f);
+  // LiPo: 3.0 V = 0 %, 4.2 V = 100 %
+  int pct = (int)((volts - 3.0f) / 1.2f * 100.0f);
+  if (pct < 0)   pct = 0;
+  if (pct > 100) pct = 100;
+  cachedBatPct = pct;
+  return pct;
+}
+
 static const int WPM_OPTIONS[] = {150, 200, 300};
 static const int WPM_COUNT = 3;
 
@@ -25,7 +52,9 @@ static bool fileChanged = false;
 #define ITEM_FILE       3
 #define ITEM_WIFI       4
 #define ITEM_EXIT       5
-#define ITEM_COUNT      6
+#define ITEM_BATTERY    6
+#define ITEM_SLEEP      7
+#define ITEM_COUNT      8
 
 int menu_get_wpm() {
   return WPM_OPTIONS[wpmIndex];
@@ -33,6 +62,12 @@ int menu_get_wpm() {
 
 static void item_label(int item, char* buf, size_t len) {
   switch (item) {
+    case ITEM_BATTERY: {
+      int pct = battery_pct();
+      if (pct < 0) snprintf(buf, len, "Battery: --");
+      else         snprintf(buf, len, "Battery: %d%%", pct);
+      break;
+    }
     case ITEM_CHAPTER: {
       const Chapter* chapters = te_get_chapters();
       int count = te_get_chapter_count();
@@ -65,7 +100,8 @@ static void item_label(int item, char* buf, size_t len) {
       break;
     }
     case ITEM_WIFI: snprintf(buf, len, ap_is_active() ? "WiFi AP: ON >" : "WiFi AP: OFF >"); break;
-    case ITEM_EXIT: snprintf(buf, len, "Exit"); break;
+    case ITEM_EXIT:    snprintf(buf, len, "Exit"); break;
+    case ITEM_SLEEP:   snprintf(buf, len, "Sleep"); break;
   }
 }
 
@@ -151,6 +187,8 @@ void menu_long_press() {
     return;
   }
   switch (cursorPos) {
+    case ITEM_BATTERY:
+      break;  // read-only — re-render with fresh reading
     case ITEM_CHAPTER:
       chapterpicker_open();
       return;
@@ -165,6 +203,10 @@ void menu_long_press() {
       return;
     case ITEM_WIFI:
       wifimenu_open();
+      return;
+    case ITEM_SLEEP:
+      if (ap_is_active()) ap_stop();
+      reader_sleep();
       return;
     case ITEM_EXIT:
       isOpen = false;

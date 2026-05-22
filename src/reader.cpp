@@ -19,7 +19,7 @@ static void resetActivity() {
   lastActivityTime = millis();
 }
 
-static void enterSleep() {
+void reader_sleep() {
   te_save_position();
   display_clear();
   display_print(0, "Sleeping...");
@@ -154,7 +154,7 @@ void reader_loop() {
   // sleep when idle (reader stopped or in menu, no button activity)
   bool readerRunning = (currentMode == MODE_RSVP) && rsvp_mode_is_running();
   if (!readerRunning && (millis() - lastActivityTime > SLEEP_TIMEOUT_MS)) {
-    enterSleep();
+    reader_sleep();
   }
 
   te_index_tick();
