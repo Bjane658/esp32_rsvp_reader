@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <esp_sleep.h>
 #include <Preferences.h>
+#include <string.h>
 #include "reader.h"
 #include "textengine.h"
 #include "rsvp_mode.h"
@@ -22,10 +23,44 @@ static void resetActivity() {
 void reader_sleep() {
   te_save_position();
   display_clear();
-  display_print(0, "Sleeping...");
+  display_set_font(FONT_SMALL);
+
+  // Line 0: filename (strip path)
+  const String& filePath = te_get_current_file();
+  if (!filePath.isEmpty()) {
+    const char* name = filePath.c_str();
+    const char* slash = strrchr(name, '/');
+    display_print(0, slash ? slash + 1 : name);
+  } else {
+    display_print(0, "(no file)");
+  }
+
+  // Line 1: current chapter title
+  int chCount = te_get_chapter_count();
+  if (chCount > 0) {
+    const Chapter* chapters = te_get_chapters();
+    size_t pos = te_current_pos();
+    int idx = 0;
+    for (int i = 0; i < chCount; i++) {
+      if (chapters[i].offset <= pos) idx = i;
+      else break;
+    }
+    char chBuf[32];
+    snprintf(chBuf, sizeof(chBuf), "Ch: %s", chapters[idx].title);
+    display_print(1, chBuf);
+  }
+
+  // Line 2: progress percentage
+  size_t total = te_file_size();
+  if (total > 0) {
+    int pct = (int)(te_current_pos() * 100UL / total);
+    char pctBuf[20];
+    snprintf(pctBuf, sizeof(pctBuf), "Progress: %d%%", pct);
+    display_print(2, pctBuf);
+  }
+
   display_flush();
-  Serial.println("sleeping");
-  delay(100);  // let serial flush and display update
+  delay(100);
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
   esp_deep_sleep_start();
 }
