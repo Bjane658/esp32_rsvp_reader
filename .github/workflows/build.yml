@@ -55,11 +55,17 @@ jobs:
             .pio/build/heltec_wireless_paper/firmware.bin
             version.txt
 
+      - name: Delete existing latest tag
+        run: git push origin :refs/tags/latest || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Update latest release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: Latest firmware
+          make_latest: true
           files: |
             .pio/build/heltec_wireless_paper/firmware.bin
             version.txt

@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <Update.h>
 #include "ota.h"
@@ -20,20 +21,51 @@ static void show(const char* line0, const char* line1 = nullptr, const char* lin
   display_flush();
 }
 
-// Returns true = long press, false = short press
 static bool wait_for_button() {
-  // Wait for press
   while (digitalRead(BOOT_BUTTON) == HIGH) delay(10);
   unsigned long pressedAt = millis();
-  // Wait for release
   while (digitalRead(BOOT_BUTTON) == LOW) delay(10);
   return (millis() - pressedAt) >= CONFIRM_LONG_MS;
 }
 
-static bool do_flash(HTTPClient& http) {
+static String fetch_string(const char* url) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.begin(client, url);
+  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  String result = "";
+  if (http.GET() == HTTP_CODE_OK) {
+    result = http.getString();
+    result.trim();
+  }
+  http.end();
+  return result;
+}
+
+static bool do_flash(const char* url) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.begin(client, url);
+  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+
+  int code = http.GET();
+  if (code != HTTP_CODE_OK) {
+    char err[28];
+    snprintf(err, sizeof(err), "HTTP error: %d", code);
+    show("Download failed.", err, "Rebooting...");
+    http.end();
+    delay(3000);
+    ESP.restart();
+  }
+
   int totalSize = http.getSize();
   if (!Update.begin(totalSize > 0 ? totalSize : UPDATE_SIZE_UNKNOWN)) {
-    return false;
+    show("Flash failed!", "Not enough space?", "Rebooting...");
+    http.end();
+    delay(3000);
+    ESP.restart();
   }
 
   WiFiClient* stream = http.getStreamPtr();
@@ -62,6 +94,7 @@ static bool do_flash(HTTPClient& http) {
     }
   }
 
+  http.end();
   return Update.end(true);
 }
 
@@ -85,25 +118,15 @@ void ota_run() {
 
   show("OTA Update", "Searching for", "updates...");
 
-  // Fetch version.txt first — tiny, tells us what's available without downloading the binary
-  HTTPClient vhttp;
-  vhttp.begin(OTA_VERSION_URL);
-  vhttp.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  char remoteVersion[32] = "unknown";
-  if (vhttp.GET() == HTTP_CODE_OK) {
-    String body = vhttp.getString();
-    body.trim();
-    strncpy(remoteVersion, body.c_str(), sizeof(remoteVersion) - 1);
-  }
-  vhttp.end();
+  String remoteVersion = fetch_string(OTA_VERSION_URL);
+  if (remoteVersion.isEmpty()) remoteVersion = "unknown";
 
   char line1[32], line2[32];
-  snprintf(line1, sizeof(line1), "New: %s", remoteVersion);
+  snprintf(line1, sizeof(line1), "New: %s", remoteVersion.c_str());
   snprintf(line2, sizeof(line2), "Now: %s", FW_VERSION);
-  show("Update found!", line1, line2, "Long:install Short:abort");
+  show("Update found!", line1, line2, "Long:install Short:no");
 
-  bool install = wait_for_button();
-  if (!install) {
+  if (!wait_for_button()) {
     WiFi.disconnect(true);
     show("Aborted.", "Rebooting...");
     delay(1500);
@@ -112,28 +135,12 @@ void ota_run() {
 
   show("Installing...", "Please wait...");
 
-  HTTPClient http;
-  http.begin(OTA_FIRMWARE_URL);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  int code = http.GET();
-
-  if (code != HTTP_CODE_OK) {
-    char err[28];
-    snprintf(err, sizeof(err), "HTTP error: %d", code);
-    show("Download failed.", err, "Rebooting...");
-    http.end();
-    delay(3000);
-    ESP.restart();
-  }
-
-  if (!do_flash(http)) {
-    http.end();
+  if (!do_flash(OTA_FIRMWARE_URL)) {
     show("Flash failed!", "Rebooting...");
     delay(3000);
     ESP.restart();
   }
 
-  http.end();
   show("Done!", "Rebooting...");
   delay(2000);
   ESP.restart();
