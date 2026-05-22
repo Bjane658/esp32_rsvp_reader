@@ -7,6 +7,7 @@
 #include "version.h"
 
 #define OTA_FIRMWARE_URL "https://github.com/Bjane658/esp32_rsvp_reader/releases/download/latest/firmware.bin"
+#define OTA_VERSION_URL  "https://github.com/Bjane658/esp32_rsvp_reader/releases/download/latest/version.txt"
 #define BOOT_BUTTON      0
 #define CONFIRM_LONG_MS  1000
 
@@ -84,6 +85,33 @@ void ota_run() {
 
   show("OTA Update", "Searching for", "updates...");
 
+  // Fetch version.txt first — tiny, tells us what's available without downloading the binary
+  HTTPClient vhttp;
+  vhttp.begin(OTA_VERSION_URL);
+  vhttp.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  char remoteVersion[32] = "unknown";
+  if (vhttp.GET() == HTTP_CODE_OK) {
+    String body = vhttp.getString();
+    body.trim();
+    strncpy(remoteVersion, body.c_str(), sizeof(remoteVersion) - 1);
+  }
+  vhttp.end();
+
+  char line1[32], line2[32];
+  snprintf(line1, sizeof(line1), "New: %s", remoteVersion);
+  snprintf(line2, sizeof(line2), "Now: %s", FW_VERSION);
+  show("Update found!", line1, line2, "Long:install Short:abort");
+
+  bool install = wait_for_button();
+  if (!install) {
+    WiFi.disconnect(true);
+    show("Aborted.", "Rebooting...");
+    delay(1500);
+    ESP.restart();
+  }
+
+  show("Installing...", "Please wait...");
+
   HTTPClient http;
   http.begin(OTA_FIRMWARE_URL);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
@@ -92,32 +120,11 @@ void ota_run() {
   if (code != HTTP_CODE_OK) {
     char err[28];
     snprintf(err, sizeof(err), "HTTP error: %d", code);
-    show("OTA Update", "No update found.", err, "Rebooting...");
+    show("Download failed.", err, "Rebooting...");
     http.end();
     delay(3000);
     ESP.restart();
   }
-
-  int size = http.getSize();
-  char sizeBuf[24];
-  if (size > 0) snprintf(sizeBuf, sizeof(sizeBuf), "%d KB", size / 1024);
-  else          snprintf(sizeBuf, sizeof(sizeBuf), "unknown size");
-
-  char verBuf[32];
-  snprintf(verBuf, sizeof(verBuf), "On device: %s", FW_VERSION);
-  show("Update found!", verBuf, "Long: install", "Short: abort");
-
-  bool install = wait_for_button();
-
-  if (!install) {
-    http.end();
-    WiFi.disconnect(true);
-    show("Aborted.", "Rebooting...");
-    delay(1500);
-    ESP.restart();
-  }
-
-  show("Installing...", "Please wait...");
 
   if (!do_flash(http)) {
     http.end();

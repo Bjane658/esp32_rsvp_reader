@@ -26,6 +26,10 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
+      - name: Set release tag
+        id: tag
+        run: echo "TAG=$(date -u +'%Y-%m-%d-%H%M')" >> $GITHUB_OUTPUT
+
       - name: Write secrets.ini
         run: |
           cat > secrets.ini << 'EOF'
@@ -39,20 +43,23 @@ jobs:
       - name: Build firmware
         run: pio run -e heltec_wireless_paper
 
-      - name: Set release tag
-        id: tag
-        run: echo "TAG=$(date -u +'%Y-%m-%d-%H%M')" >> $GITHUB_OUTPUT
+      - name: Write version.txt
+        run: echo "${{ steps.tag.outputs.TAG }}" > version.txt
 
       - name: Publish versioned release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.TAG }}
           name: Firmware ${{ steps.tag.outputs.TAG }}
-          files: .pio/build/heltec_wireless_paper/firmware.bin
+          files: |
+            .pio/build/heltec_wireless_paper/firmware.bin
+            version.txt
 
       - name: Update latest release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: Latest firmware
-          files: .pio/build/heltec_wireless_paper/firmware.bin
+          files: |
+            .pio/build/heltec_wireless_paper/firmware.bin
+            version.txt
