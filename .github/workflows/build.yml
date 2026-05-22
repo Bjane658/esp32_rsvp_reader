@@ -32,13 +32,11 @@ jobs:
 
       - name: Write secrets.ini
         run: |
-          cat > secrets.ini << 'EOF'
-          [secrets]
-          build_flags =
-              -DAP_PASSWORD='"${{ secrets.AP_PASSWORD }}"'
-              -DOTA_SSID='"${{ secrets.OTA_SSID }}"'
-              -DOTA_PASSWORD='"${{ secrets.OTA_PASSWORD }}"'
-          EOF
+          printf '[secrets]\nbuild_flags =\n    -DAP_PASSWORD='"'"'"%s"'"'"'\n    -DOTA_SSID='"'"'"%s"'"'"'\n    -DOTA_PASSWORD='"'"'"%s"'"'"'\n' \
+            "${{ secrets.AP_PASSWORD }}" \
+            "${{ secrets.OTA_SSID }}" \
+            "${{ secrets.OTA_PASSWORD }}" > secrets.ini
+          cat secrets.ini
 
       - name: Build firmware
         run: pio run -e heltec_wireless_paper
