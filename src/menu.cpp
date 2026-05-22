@@ -9,6 +9,7 @@
 #include "filepicker.h"
 #include "wifimenu.h"
 #include "chapterpicker.h"
+#include "settingsmenu.h"
 
 // Wireless Paper v1.x: GPIO20 = battery ADC (ADC2), GPIO19 = enable (active LOW)
 // ADC2 conflicts with WiFi on ESP32-S3, so we cache the last reading taken without WiFi.
@@ -19,17 +20,14 @@ static int cachedBatPct = -1;
 
 static int battery_pct() {
   if (ap_is_active()) {
-    return cachedBatPct >= 0 ? cachedBatPct : -1;  // can't read ADC2 while WiFi is up
+    return cachedBatPct >= 0 ? cachedBatPct : -1;
   }
   pinMode(BAT_CTRL_PIN, OUTPUT);
-  digitalWrite(BAT_CTRL_PIN, LOW);   // enable measurement
+  digitalWrite(BAT_CTRL_PIN, LOW);
   delay(5);
   int raw = analogRead(BAT_ADC_PIN);
-  digitalWrite(BAT_CTRL_PIN, HIGH);  // disable to save power
-  // voltage divider: VBAT → 390kΩ → GPIO20 → 100kΩ → GND  →  ratio = 100/490 ≈ 0.204
-  // ADC full scale: 4095 → 3.3 V  →  VBAT = adc_v / 0.204
+  digitalWrite(BAT_CTRL_PIN, HIGH);
   float volts = (raw / 4095.0f) * 3.3f / (100.0f / 490.0f);
-  // LiPo: 3.0 V = 0 %, 4.2 V = 100 %
   int pct = (int)((volts - 3.0f) / 1.2f * 100.0f);
   if (pct < 0)   pct = 0;
   if (pct > 100) pct = 100;
@@ -40,34 +38,28 @@ static int battery_pct() {
 static const int WPM_OPTIONS[] = {150, 200, 300};
 static const int WPM_COUNT = 3;
 
+// Exposed to settingsmenu.cpp so WPM can be changed from within Settings
+int menu_wpm_index = 1;
+
 static bool isOpen = false;
 static int cursorPos = 0;
 static int scrollOffset = 0;
-static int wpmIndex = 1;
 static bool fileChanged = false;
 
-#define ITEM_CHAPTER    0
-#define ITEM_WPM        1
-#define ITEM_MODE       2
-#define ITEM_FILE       3
-#define ITEM_WIFI       4
-#define ITEM_EXIT       5
-#define ITEM_BATTERY    6
-#define ITEM_SLEEP      7
-#define ITEM_COUNT      8
+#define ITEM_CHAPTER   0
+#define ITEM_FILE      1
+#define ITEM_SETTINGS  2
+#define ITEM_EXIT      3
+#define ITEM_BATTERY   4
+#define ITEM_SLEEP     5
+#define ITEM_COUNT     6
 
 int menu_get_wpm() {
-  return WPM_OPTIONS[wpmIndex];
+  return WPM_OPTIONS[menu_wpm_index];
 }
 
 static void item_label(int item, char* buf, size_t len) {
   switch (item) {
-    case ITEM_BATTERY: {
-      int pct = battery_pct();
-      if (pct < 0) snprintf(buf, len, "Battery: --");
-      else         snprintf(buf, len, "Battery: %d%%", pct);
-      break;
-    }
     case ITEM_CHAPTER: {
       const Chapter* chapters = te_get_chapters();
       int count = te_get_chapter_count();
@@ -86,8 +78,6 @@ static void item_label(int item, char* buf, size_t len) {
       }
       break;
     }
-    case ITEM_WPM:     snprintf(buf, len, "WPM: %d", WPM_OPTIONS[wpmIndex]); break;
-    case ITEM_MODE:    snprintf(buf, len, "Mode: %s", reader_get_mode_name()); break;
     case ITEM_FILE: {
       const String& f = te_get_current_file();
       if (f.isEmpty()) {
@@ -99,9 +89,15 @@ static void item_label(int item, char* buf, size_t len) {
       }
       break;
     }
-    case ITEM_WIFI: snprintf(buf, len, ap_is_active() ? "WiFi AP: ON >" : "WiFi AP: OFF >"); break;
-    case ITEM_EXIT:    snprintf(buf, len, "Exit"); break;
-    case ITEM_SLEEP:   snprintf(buf, len, "Sleep"); break;
+    case ITEM_SETTINGS: snprintf(buf, len, "Settings >"); break;
+    case ITEM_EXIT:     snprintf(buf, len, "Exit"); break;
+    case ITEM_BATTERY: {
+      int pct = battery_pct();
+      if (pct < 0) snprintf(buf, len, "Battery: --");
+      else         snprintf(buf, len, "Battery: %d%%", pct);
+      break;
+    }
+    case ITEM_SLEEP: snprintf(buf, len, "Sleep"); break;
   }
 }
 
@@ -138,13 +134,13 @@ void menu_short_press() {
     filepicker_short_press();
     return;
   }
-  if (wifimenu_is_open()) {
-    wifimenu_short_press();
-    render();
-    return;
-  }
   if (chapterpicker_is_open()) {
     chapterpicker_short_press();
+    return;
+  }
+  if (settingsmenu_is_open()) {
+    settingsmenu_short_press();
+    if (!settingsmenu_is_open()) render();  // settings closed, back to main menu
     return;
   }
   cursorPos = (cursorPos + 1) % ITEM_COUNT;
@@ -156,16 +152,15 @@ void menu_double_press() {
     filepicker_double_press();
     return;
   }
-  if (wifimenu_is_open()) {
-    wifimenu_short_press();  // only one item, up/down same effect
-    render();
-    return;
-  }
   if (chapterpicker_is_open()) {
     chapterpicker_double_press();
     return;
   }
-  // main menu: cursor up
+  if (settingsmenu_is_open()) {
+    settingsmenu_double_press();
+    if (!settingsmenu_is_open()) render();  // settings closed, back to main menu
+    return;
+  }
   cursorPos = (cursorPos - 1 + ITEM_COUNT) % ITEM_COUNT;
   render();
 }
@@ -176,43 +171,35 @@ void menu_long_press() {
     render();
     return;
   }
-  if (wifimenu_is_open()) {
-    wifimenu_long_press();
-    if (!ap_is_active()) fileChanged = true;
-    return;
-  }
   if (chapterpicker_is_open()) {
     if (chapterpicker_long_press()) ereader_mode_reset_history();
     render();
     return;
   }
+  if (settingsmenu_is_open()) {
+    settingsmenu_long_press();
+    if (!settingsmenu_is_open()) render();
+    return;
+  }
   switch (cursorPos) {
-    case ITEM_BATTERY:
-      break;  // read-only — re-render with fresh reading
     case ITEM_CHAPTER:
       chapterpicker_open();
       return;
-    case ITEM_WPM:
-      wpmIndex = (wpmIndex + 1) % WPM_COUNT;
-      break;
-    case ITEM_MODE:
-      reader_toggle_mode();
-      break;
     case ITEM_FILE:
       filepicker_open();
       return;
-    case ITEM_WIFI:
-      wifimenu_open();
+    case ITEM_SETTINGS:
+      settingsmenu_open();
       return;
+    case ITEM_BATTERY:
+      break;  // read-only, re-render with fresh reading
     case ITEM_SLEEP:
       if (ap_is_active()) ap_stop();
       reader_sleep();
       return;
     case ITEM_EXIT:
       isOpen = false;
-      if (ap_is_active()) {
-        ap_stop();
-      }
+      if (ap_is_active()) ap_stop();
       if (reader_is_ereader_mode()) {
         ereader_mode_show_page();
       } else if (fileChanged) {
