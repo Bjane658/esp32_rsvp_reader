@@ -3,6 +3,7 @@
 #include "textengine.h"
 #include "display.h"
 #include "menu.h"
+#include "app_registry.h"
 
 static bool    running      = false;
 static char    lastWords[3][64] = {"", "", ""};
@@ -157,3 +158,16 @@ void rsvp_mode_loop() {
   const char* prevWord = lastWords[(lastWordIndex + 2) % 3];
   display_word(prevWord, lastWords[lastWordIndex], nextWord);
 }
+
+static App s_rsvp_app = {
+  "rsvp", "RSVP",
+  rsvp_mode_start, rsvp_mode_stop, rsvp_mode_loop,
+  rsvp_mode_short_press, rsvp_mode_double_press,
+  rsvp_mode_show_preview,
+  rsvp_mode_is_running, rsvp_mode_set_running,
+  nullptr
+};
+
+static struct RsvpRegistrar {
+  RsvpRegistrar() { app_registry_register(&s_rsvp_app); }
+} s_rsvp_registrar;
