@@ -14,6 +14,11 @@
 #define DOUBLE_CLICK_MS       400
 #define SLEEP_TIMEOUT_MS  300000UL  // 5 minutes
 
+// Button GPIO — set via build flag per board; defaults to GPIO0 (BOOT)
+#ifndef BUTTON_GPIO
+#define BUTTON_GPIO 0
+#endif
+
 static unsigned long lastActivityTime = 0;
 
 static void resetActivity() {
@@ -60,7 +65,7 @@ void reader_sleep() {
 
   display_flush();
   delay(100);
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_GPIO, 0);
   esp_deep_sleep_start();
 }
 
@@ -73,7 +78,7 @@ static volatile bool          longFired   = false;
 static volatile bool          shortPressFlag = false;
 static volatile bool          longPressFlag  = false;
 void IRAM_ATTR reader_onButtonChange() {
-  if (digitalRead(0) == LOW) {
+  if (digitalRead(BUTTON_GPIO) == LOW) {
     pressStart = millis();
     buttonDown = true;
     longFired  = false;
