@@ -3,9 +3,8 @@
 #include <Preferences.h>
 #include <string.h>
 #include "reader.h"
+#include "app_registry.h"
 #include "textengine.h"
-#include "rsvp_mode.h"
-#include "ereader_mode.h"
 #include "menu.h"
 #include "display.h"
 #include "ap.h"
@@ -24,7 +23,6 @@ void reader_sleep() {
   display_clear();
   display_set_font(FONT_SMALL);
 
-  // Line 0: filename (strip path)
   const String& filePath = te_get_current_file();
   if (!filePath.isEmpty()) {
     const char* name = filePath.c_str();
@@ -34,7 +32,6 @@ void reader_sleep() {
     display_print(0, "(no file)");
   }
 
-  // Line 1: current chapter title
   int chCount = te_get_chapter_count();
   if (chCount > 0) {
     const Chapter* chapters = te_get_chapters();
@@ -49,7 +46,6 @@ void reader_sleep() {
     display_print(1, chBuf);
   }
 
-  // Line 2: progress percentage
   size_t total = te_file_size();
   if (total > 0) {
     int pct = (int)(te_current_pos() * 100UL / total);
@@ -64,14 +60,12 @@ void reader_sleep() {
   esp_deep_sleep_start();
 }
 
-typedef enum { MODE_RSVP, MODE_EREADER } ReaderMode;
-static ReaderMode currentMode = MODE_RSVP;
-
 static volatile unsigned long pressStart  = 0;
 static volatile bool          buttonDown  = false;
 static volatile bool          longFired   = false;
 static volatile bool          shortPressFlag = false;
 static volatile bool          longPressFlag  = false;
+
 void IRAM_ATTR reader_onButtonChange() {
   if (digitalRead(0) == LOW) {
     pressStart = millis();
@@ -86,35 +80,29 @@ void IRAM_ATTR reader_onButtonChange() {
   }
 }
 
-static void startCurrentMode() {
-  if (currentMode == MODE_RSVP)    rsvp_mode_start();
-  else                              ereader_mode_start();
-}
-
-static void stopCurrentMode() {
-  if (currentMode == MODE_RSVP)    rsvp_mode_stop();
-  else                              ereader_mode_stop();
-}
-
-static void saveMode() {
+static void saveActiveApp() {
+  App* a = app_get_active();
+  if (!a) return;
   Preferences p;
   p.begin("reader", false);
-  p.putUChar("mode", (uint8_t)currentMode);
+  p.putString("app_id", a->id);
   p.end();
 }
 
-static void loadMode() {
+static void loadActiveApp() {
   Preferences p;
-  p.begin("reader", false);  // read-write, creates namespace if missing
-  currentMode = (ReaderMode)p.getUChar("mode", (uint8_t)MODE_RSVP);
+  p.begin("reader", false);
+  String saved = p.getString("app_id", "rsvp");
   p.end();
+  App* a = app_registry_find_by_id(saved.c_str());
+  if (!a) a = app_registry_get(0);  // stale/unknown ID: fall back to first
+  if (a) app_push(a);
 }
 
 void reader_setup() {
   te_setup();
-  loadMode();
+  loadActiveApp();  // app_push calls start() on the active app
   resetActivity();
-  startCurrentMode();
 }
 
 void reader_loop() {
@@ -130,7 +118,8 @@ void reader_loop() {
     if (menu_is_open()) {
       menu_long_press();
     } else {
-      if (currentMode == MODE_RSVP) rsvp_mode_set_running(false);
+      App* a = app_get_active();
+      if (a && a->set_running) a->set_running(false);
       menu_open();
     }
   }
@@ -152,17 +141,16 @@ void reader_loop() {
         firstPressTime   = millis();
       }
     } else {
-      // outside menu
-      if (currentMode == MODE_RSVP && rsvp_mode_is_running()) {
-        // running: stop immediately, no double-press possible
-        rsvp_mode_set_running(false);
+      App* a = app_get_active();
+      bool isRunning = a && a->is_running && a->is_running();
+      if (isRunning) {
+        // streaming app running: stop immediately, no double-press
+        if (a->set_running) a->set_running(false);
         te_save_position();
         waitingForDouble = false;
       } else if (waitingForDouble && (millis() - firstPressTime <= DOUBLE_CLICK_MS)) {
-        // second press while stopped → double-press action
         waitingForDouble = false;
-        if (currentMode == MODE_RSVP)   rsvp_mode_double_press();
-        else                             ereader_mode_double_press();
+        if (a && a->double_press) a->double_press();
       } else {
         waitingForDouble = true;
         firstPressTime   = millis();
@@ -176,18 +164,21 @@ void reader_loop() {
     if (menu_is_open()) {
       menu_short_press();
     } else {
-      if (currentMode == MODE_RSVP) {
+      App* a = app_get_active();
+      if (a && a->set_running) {
+        // streaming app: confirmed single press starts playback
         resetActivity();
-        rsvp_mode_set_running(true);
+        a->set_running(true);
       } else {
-        ereader_mode_short_press();
+        if (a && a->short_press) a->short_press();
       }
     }
   }
 
-  // sleep when idle (reader stopped or in menu, no button activity)
-  bool readerRunning = (currentMode == MODE_RSVP) && rsvp_mode_is_running();
-  if (!readerRunning && (millis() - lastActivityTime > SLEEP_TIMEOUT_MS)) {
+  // sleep when idle
+  App* a = app_get_active();
+  bool appRunning = a && a->is_running && a->is_running();
+  if (!appRunning && (millis() - lastActivityTime > SLEEP_TIMEOUT_MS)) {
     reader_sleep();
   }
 
@@ -203,21 +194,15 @@ void reader_loop() {
     return;
   }
 
-  if (currentMode == MODE_RSVP)   rsvp_mode_loop();
-  else                             ereader_mode_loop();
+  if (a && a->loop) a->loop();
 }
 
-void reader_toggle_mode() {
-  stopCurrentMode();
-  currentMode = (currentMode == MODE_RSVP) ? MODE_EREADER : MODE_RSVP;
-  saveMode();
-  startCurrentMode();
-}
-
-bool reader_is_ereader_mode() {
-  return currentMode == MODE_EREADER;
+void reader_cycle_app() {
+  app_cycle();
+  saveActiveApp();
 }
 
 const char* reader_get_mode_name() {
-  return (currentMode == MODE_RSVP) ? "RSVP" : "EReader";
+  App* a = app_get_active();
+  return a ? a->display_name : "?";
 }

@@ -2,6 +2,7 @@
 #include "ereader_mode.h"
 #include "textengine.h"
 #include "display.h"
+#include "app_registry.h"
 
 // Ring buffer of page-start positions for going back
 #define PAGE_HISTORY 8
@@ -201,3 +202,16 @@ void ereader_mode_double_press() {
   te_save_position();  // save page start before renderPage() advances the cursor
   renderPage();
 }
+
+static App s_ereader_app = {
+  "ereader", "EReader",
+  ereader_mode_start, ereader_mode_stop, ereader_mode_loop,
+  ereader_mode_short_press, ereader_mode_double_press,
+  ereader_mode_show_page,
+  nullptr, nullptr,
+  ereader_mode_reset_history
+};
+
+static struct EreaderRegistrar {
+  EreaderRegistrar() { app_registry_register(&s_ereader_app); }
+} s_ereader_registrar;

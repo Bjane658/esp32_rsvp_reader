@@ -96,7 +96,7 @@ void settingsmenu_long_press() {
       menu_wpm_index = (menu_wpm_index + 1) % WPM_COUNT;
       break;
     case SITEM_MODE:
-      reader_toggle_mode();
+      reader_cycle_app();
       break;
     case SITEM_WIFI:
       wifimenu_open();

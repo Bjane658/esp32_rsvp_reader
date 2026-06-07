@@ -3,9 +3,7 @@
 #include "display.h"
 #include "ap.h"
 #include "textengine.h"
-#include "rsvp_mode.h"
-#include "ereader_mode.h"
-#include "reader.h"
+#include "app_registry.h"
 #include "filepicker.h"
 #include "wifimenu.h"
 #include "chapterpicker.h"
@@ -44,7 +42,6 @@ int menu_wpm_index = 1;
 static bool isOpen = false;
 static int cursorPos = 0;
 static int scrollOffset = 0;
-static bool fileChanged = false;
 
 #define ITEM_CHAPTER   0
 #define ITEM_FILE      1
@@ -124,7 +121,6 @@ void menu_open() {
   isOpen = true;
   cursorPos = 0;
   scrollOffset = 0;
-  fileChanged = false;
   display_set_font(FONT_SMALL);
   render();
 }
@@ -167,12 +163,15 @@ void menu_double_press() {
 
 void menu_long_press() {
   if (filepicker_is_open()) {
-    if (filepicker_long_press()) fileChanged = true;
+    filepicker_long_press();
     render();
     return;
   }
   if (chapterpicker_is_open()) {
-    if (chapterpicker_long_press()) ereader_mode_reset_history();
+    if (chapterpicker_long_press()) {
+      App* a = app_get_active();
+      if (a && a->on_chapter_changed) a->on_chapter_changed();
+    }
     render();
     return;
   }
@@ -200,12 +199,9 @@ void menu_long_press() {
     case ITEM_EXIT:
       isOpen = false;
       if (ap_is_active()) ap_stop();
-      if (reader_is_ereader_mode()) {
-        ereader_mode_show_page();
-      } else if (fileChanged) {
-        rsvp_mode_show_preview();
-      } else {
-        rsvp_mode_show_current_word();
+      {
+        App* a = app_get_active();
+        if (a && a->show) a->show();
       }
       return;
   }
