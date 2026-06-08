@@ -4,6 +4,7 @@
 #include "ap.h"
 #include "textengine.h"
 #include "app_registry.h"
+#include "reader.h"
 #include "filepicker.h"
 #include "wifimenu.h"
 #include "chapterpicker.h"
