@@ -9,7 +9,9 @@
 
 #define OTA_FIRMWARE_URL "https://github.com/Bjane658/esp32_rsvp_reader/releases/latest/download/firmware.bin"
 #define OTA_VERSION_URL  "https://github.com/Bjane658/esp32_rsvp_reader/releases/latest/download/version.txt"
-#define BOOT_BUTTON      0
+#ifndef BUTTON_GPIO
+#define BUTTON_GPIO 0
+#endif
 #define CONFIRM_LONG_MS  1000
 
 static void show(const char* line0, const char* line1 = nullptr, const char* line2 = nullptr, const char* line3 = nullptr) {
@@ -22,9 +24,9 @@ static void show(const char* line0, const char* line1 = nullptr, const char* lin
 }
 
 static bool wait_for_button() {
-  while (digitalRead(BOOT_BUTTON) == HIGH) delay(10);
+  while (digitalRead(BUTTON_GPIO) == HIGH) delay(10);
   unsigned long pressedAt = millis();
-  while (digitalRead(BOOT_BUTTON) == LOW) delay(10);
+  while (digitalRead(BUTTON_GPIO) == LOW) delay(10);
   return (millis() - pressedAt) >= CONFIRM_LONG_MS;
 }
 
