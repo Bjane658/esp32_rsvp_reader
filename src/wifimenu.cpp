@@ -37,6 +37,10 @@ void wifimenu_short_press() {
   isOpen = false;
 }
 
+void wifimenu_double_press() {
+  isOpen = false;
+}
+
 void wifimenu_cancel() {
   isOpen = false;
 }
