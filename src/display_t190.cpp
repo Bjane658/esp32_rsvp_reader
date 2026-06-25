@@ -17,7 +17,7 @@
 #define TFT_RST   40
 #define TFT_SCLK  38
 #define TFT_MOSI  48
-#define TFT_LED   17   // backlight cathode: LOW = on
+#define TFT_LED   17   // backlight enable: HIGH = on
 #define TFT_PWR    7   // display power enable: LOW = on
 
 #define MARGIN_X   6
@@ -28,9 +28,9 @@
 #define TFT_BLACK  0x0000
 
 // --- Font layout table ---------------------------------------------------
-// Rotated display: 320 x 240 px (landscape)
+// Rotated display: 320 x 170 px (landscape)
 // Usable width:  320 - 2*MARGIN_X = 308 px
-// Usable height: 240 - 2*MARGIN_Y = 228 px
+// Usable height: 170 - 2*MARGIN_Y = 158 px
 struct FontConfig {
   const GFXfont* gfx;
   int line_height;      // px per row
@@ -40,8 +40,8 @@ struct FontConfig {
 };
 
 static const FontConfig FONTS[] = {
-  { &DejaVuSans9pt8b,  22, 17, 9, 35 },  // FONT_SMALL
-  { &DejaVuSans12pt8b, 30, 23, 6, 24 },  // FONT_LARGE
+  { &DejaVuSans9pt8b,  22, 17, 7, 35 },  // FONT_SMALL
+  { &DejaVuSans12pt8b, 30, 23, 5, 24 },  // FONT_LARGE
 };
 
 #define MAX_ROWS 10
@@ -52,8 +52,9 @@ static float       progressFraction = -1.0f;
 static char        buffer[MAX_ROWS][MAX_COLS + 1];
 static int         cursorRow = -1;
 
-// Software SPI (explicit MOSI/SCLK pins, bypasses default SPI bus)
-static HT_ST7789 tft(240, 320, TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+// Hardware SPI on the HSPI bus (matches Heltec's VMT190/tft1_9 example)
+static SPIClass  tftSPI(HSPI);
+static HT_ST7789 tft(240, 320, &tftSPI, TFT_CS, TFT_DC, TFT_RST);
 
 // --- Public query functions ----------------------------------------------
 
@@ -97,16 +98,22 @@ static void hw_render() {
 // --- Public API ----------------------------------------------------------
 
 void display_setup() {
-  // Power on display and backlight
+  // Power on the display panel (active LOW)
   pinMode(TFT_PWR, OUTPUT);
-  digitalWrite(TFT_PWR, LOW);   // active LOW
-  pinMode(TFT_LED, OUTPUT);
-  digitalWrite(TFT_LED, LOW);   // LED cathode: LOW = backlight on
-  delay(10);
+  digitalWrite(TFT_PWR, LOW);
+  delay(20);
 
-  tft.init(240, 320);
-  tft.setRotation(1);           // landscape: 320 x 240
+  tftSPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
+  pinMode(tftSPI.pinSS(), OUTPUT);
+
+  // The visible panel is 170 x 320; the controller still reports 240 wide.
+  tft.init(170, 320);
+  tft.setRotation(1);           // landscape: 320 x 170
   tft.fillScreen(TFT_WHITE);
+
+  // Backlight on (HIGH = on) after init so we don't show garbage RAM
+  pinMode(TFT_LED, OUTPUT);
+  digitalWrite(TFT_LED, HIGH);
 }
 
 void display_set_font(DisplayFont f) {
