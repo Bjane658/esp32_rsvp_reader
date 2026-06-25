@@ -165,7 +165,8 @@ static App s_rsvp_app = {
   rsvp_mode_short_press, rsvp_mode_double_press,
   rsvp_mode_show_preview,
   rsvp_mode_is_running, rsvp_mode_set_running,
-  nullptr
+  nullptr,
+  true   // cycleable: reading mode
 };
 
 static struct RsvpRegistrar {

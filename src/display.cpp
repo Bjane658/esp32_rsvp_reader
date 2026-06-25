@@ -198,3 +198,58 @@ void display_word(const char* prev, const char* word, const char* next) {
   Serial.println(line);
   hw_render_row(row);
 }
+
+// Full-screen, auto-scaled, centered text. Used by the timer to show the
+// remaining time as large as the panel allows. Bypasses the row buffer and
+// draws directly (like display_word). Flushes immediately.
+// invert = true → black background + white text (for the alarm flash).
+void display_print_big(const char* text, bool invert) {
+  const FontConfig& fc = FONTS[FONT_LARGE];
+  for (int i = 0; i < MAX_ROWS; i++)
+    buffer[i][0] = '\0';
+  cursorRow = -1;
+  progressFraction = -1.0f;
+
+  ensure_fastmode();
+  if (invert) {
+    display.fillScreen(BLACK);
+  } else {
+    display.clearMemory();
+  }
+  display.setRotation(1);
+  display.setFont(fc.gfx);
+  display.setTextColor(invert ? WHITE : BLACK);
+  display.setTextWrap(false);
+
+  int usableW = display.width() - MARGIN_X * 2;
+  int usableH = display.height() - MARGIN_Y * 2;
+
+  // Pick the largest text size (6..2) whose bounds fit the usable area.
+  int best = 1;
+  int16_t bx = 0, by = 0;
+  uint16_t bw = 0, bh = 0;
+  for (int s = 6; s >= 2; s--) {
+    display.setTextSize(s);
+    int16_t x1 = 0, y1 = 0;
+    uint16_t w = 0, h = 0;
+    display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+    if ((int)w <= usableW && (int)h <= usableH) {
+      best = s; bx = x1; by = y1; bw = w; bh = h;
+      break;
+    }
+  }
+  if (best == 1) {
+    display.setTextSize(1);
+    display.getTextBounds(text, 0, 0, &bx, &by, &bw, &bh);
+  }
+
+  // Center the text bounds within the usable area. getTextBounds returns the
+  // bounds offset (x1,y1) relative to the cursor, so subtract it to place the
+  // visible glyph box at the computed center.
+  int x = MARGIN_X + (usableW - (int)bw) / 2 - bx;
+  int y = MARGIN_Y + (usableH - (int)bh) / 2 - by;
+  display.setCursor(x, y);
+  display.print(text);
+  display.update();
+  display.setTextSize(1);  // reset for subsequent normal row renders
+}

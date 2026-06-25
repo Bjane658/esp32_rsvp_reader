@@ -209,7 +209,8 @@ static App s_ereader_app = {
   ereader_mode_short_press, ereader_mode_double_press,
   ereader_mode_show_page,
   nullptr, nullptr,
-  ereader_mode_reset_history
+  ereader_mode_reset_history,
+  true   // cycleable: reading mode
 };
 
 static struct EreaderRegistrar {

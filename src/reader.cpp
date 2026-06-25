@@ -87,7 +87,7 @@ void IRAM_ATTR reader_onButtonChange() {
 
 static void saveActiveApp() {
   App* a = app_get_active();
-  if (!a) return;
+  if (!a || !a->cycleable) return;  // never persist a tool app as the boot app
   Preferences p;
   p.begin("reader", false);
   p.putString("app_id", a->id);
@@ -100,7 +100,15 @@ static void loadActiveApp() {
   String saved = p.getString("app_id", "rsvp");
   p.end();
   App* a = app_registry_find_by_id(saved.c_str());
-  if (!a) a = app_registry_get(0);  // stale/unknown ID: fall back to first
+  if (!a || !a->cycleable) {
+    // stale/unknown/tool ID: fall back to first cycleable (reading) app
+    a = nullptr;
+    for (int i = 0; i < app_registry_count(); i++) {
+      App* cand = app_registry_get(i);
+      if (cand && cand->cycleable) { a = cand; break; }
+    }
+  }
+  if (!a) a = app_registry_get(0);  // last resort
   if (a) app_push(a);
 }
 

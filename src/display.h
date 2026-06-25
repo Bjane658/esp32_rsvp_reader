@@ -20,3 +20,4 @@ void display_cursor(int row);   // buffer only
 void display_set_progress(float fraction); // 0.0–1.0, drawn at bottom on next flush
 void display_flush();           // push buffer to screen
 void display_word(const char* prev, const char* word, const char* next); // buffer + flush
+void display_print_big(const char* text, bool invert = false);  // full-screen centered, auto-scaled; invert = black bg + white text. Bypasses row buffer + flushes

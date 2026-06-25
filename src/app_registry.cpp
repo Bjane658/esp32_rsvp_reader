@@ -48,11 +48,22 @@ int app_get_active_index() {
     return 0;
 }
 
+int app_stack_depth() {
+    return s_top + 1;
+}
+
 void app_cycle() {
     if (s_count == 0) return;
-    int next = (app_get_active_index() + 1) % s_count;
-    if (s_top >= 0 && s_stack[s_top] && s_stack[s_top]->stop) s_stack[s_top]->stop();
-    if (s_top < 0) s_top = 0;
-    s_stack[s_top] = s_apps[next];
-    if (s_stack[s_top] && s_stack[s_top]->start) s_stack[s_top]->start();
+    // Skip non-cycleable (tool) apps so Settings > Mode never lands on a tool.
+    int idx = app_get_active_index();
+    for (int i = 1; i <= s_count; i++) {
+        int next = (idx + i) % s_count;
+        if (s_apps[next] && s_apps[next]->cycleable) {
+            if (s_top >= 0 && s_stack[s_top] && s_stack[s_top]->stop) s_stack[s_top]->stop();
+            if (s_top < 0) s_top = 0;
+            s_stack[s_top] = s_apps[next];
+            if (s_stack[s_top] && s_stack[s_top]->start) s_stack[s_top]->start();
+            return;
+        }
+    }
 }

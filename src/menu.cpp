@@ -9,6 +9,7 @@
 #include "wifimenu.h"
 #include "chapterpicker.h"
 #include "settingsmenu.h"
+#include "appsmenu.h"
 
 // Wireless Paper v1.x: GPIO20 = battery ADC (ADC2), GPIO19 = enable (active LOW)
 // ADC2 conflicts with WiFi on ESP32-S3, so we cache the last reading taken without WiFi.
@@ -46,11 +47,12 @@ static int scrollOffset = 0;
 
 #define ITEM_CHAPTER   0
 #define ITEM_FILE      1
-#define ITEM_SETTINGS  2
-#define ITEM_EXIT      3
-#define ITEM_BATTERY   4
-#define ITEM_SLEEP     5
-#define ITEM_COUNT     6
+#define ITEM_APPS      2
+#define ITEM_SETTINGS  3
+#define ITEM_EXIT      4
+#define ITEM_BATTERY   5
+#define ITEM_SLEEP     6
+#define ITEM_COUNT     7
 
 int menu_get_wpm() {
   return WPM_OPTIONS[menu_wpm_index];
@@ -88,6 +90,7 @@ static void item_label(int item, char* buf, size_t len) {
       break;
     }
     case ITEM_SETTINGS: snprintf(buf, len, "Settings"); break;
+    case ITEM_APPS:     snprintf(buf, len, "Apps >"); break;
     case ITEM_EXIT:     snprintf(buf, len, "Exit"); break;
     case ITEM_BATTERY: {
       int pct = battery_pct();
@@ -126,6 +129,10 @@ void menu_open() {
   render();
 }
 
+void menu_close() {
+  isOpen = false;
+}
+
 void menu_short_press() {
   if (filepicker_is_open()) {
     filepicker_short_press();
@@ -138,6 +145,11 @@ void menu_short_press() {
   if (settingsmenu_is_open()) {
     settingsmenu_short_press();
     if (!settingsmenu_is_open()) render();  // settings closed, back to main menu
+    return;
+  }
+  if (appsmenu_is_open()) {
+    appsmenu_short_press();
+    if (!appsmenu_is_open()) render();  // apps closed, back to main menu
     return;
   }
   cursorPos = (cursorPos + 1) % ITEM_COUNT;
@@ -156,6 +168,11 @@ void menu_double_press() {
   if (settingsmenu_is_open()) {
     settingsmenu_double_press();
     if (!settingsmenu_is_open()) render();  // settings closed, back to main menu
+    return;
+  }
+  if (appsmenu_is_open()) {
+    appsmenu_double_press();
+    if (!appsmenu_is_open()) render();  // apps closed, back to main menu
     return;
   }
   cursorPos = (cursorPos - 1 + ITEM_COUNT) % ITEM_COUNT;
@@ -181,12 +198,22 @@ void menu_long_press() {
     if (!settingsmenu_is_open()) render();
     return;
   }
+  if (appsmenu_is_open()) {
+    appsmenu_long_press();
+    // If appsmenu launched an app it closes itself and the menu; otherwise it
+    // closed via Back and we re-render the main menu.
+    if (!appsmenu_is_open() && menu_is_open()) render();
+    return;
+  }
   switch (cursorPos) {
     case ITEM_CHAPTER:
       chapterpicker_open();
       return;
     case ITEM_FILE:
       filepicker_open();
+      return;
+    case ITEM_APPS:
+      appsmenu_open();
       return;
     case ITEM_SETTINGS:
       settingsmenu_open();
@@ -200,7 +227,9 @@ void menu_long_press() {
     case ITEM_EXIT:
       isOpen = false;
       if (ap_is_active()) ap_stop();
-      {
+      if (app_stack_depth() > 1) {
+        app_pop();  // leave a pushed tool app; app_pop() shows the new top
+      } else {
         App* a = app_get_active();
         if (a && a->show) a->show();
       }
