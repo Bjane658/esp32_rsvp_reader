@@ -25,6 +25,14 @@ static void resetActivity() {
 }
 
 void reader_sleep() {
+  App* active = app_get_active();
+  if (active) {
+    Preferences p;
+    p.begin("reader", false);
+    p.putString("wake_app", active->id);
+    p.end();
+  }
+
   display_clear();
   display_set_font(FONT_SMALL);
 
@@ -97,8 +105,15 @@ static void saveActiveApp() {
 static void loadActiveApp() {
   Preferences p;
   p.begin("reader", false);
+  String wake = p.getString("wake_app", "");
   String saved = p.getString("app_id", "rsvp");
   p.end();
+
+  // Wake-restore: return to whatever app was active before sleep (tool or
+  // reading mode), independent of the Settings > Mode cycle logic below.
+  App* w = wake.isEmpty() ? nullptr : app_registry_find_by_id(wake.c_str());
+  if (w) { app_push(w); return; }
+
   App* a = app_registry_find_by_id(saved.c_str());
   if (!a || !a->cycleable) {
     // stale/unknown/tool ID: fall back to first cycleable (reading) app

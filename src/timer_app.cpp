@@ -43,29 +43,12 @@ static void savePresetIdx() {
 }
 
 // --- Rendering -----------------------------------------------------------
-// FONT_LARGE: 3 rows, 20 cols. Big value centered on the middle row.
-static void print_centered(int row, const char* s) {
-  int cols = display_cols();
-  int len = (int)strlen(s);
-  char line[40];
-  int pad = (cols - len) / 2;
-  if (pad < 0) pad = 0;
-  int i = 0;
-  while (i < pad && i < (int)sizeof(line) - 1) line[i++] = ' ';
-  int j = 0;
-  while (s[j] && i < (int)sizeof(line) - 1) line[i++] = s[j++];
-  line[i] = '\0';
-  display_print(row, line);
-}
-
 static void render() {
-  const char* label;
   char val[8];
 
   switch (state) {
     case TS_IDLE:
-      label = "Timer";
-      snprintf(val, sizeof(val), "%02d", PRESETS[presetIdx]);
+      snprintf(val, sizeof(val), "%02d:00", PRESETS[presetIdx]);
       break;
     case TS_RUNNING:
     case TS_PAUSED: {
@@ -76,36 +59,24 @@ static void render() {
       unsigned long mm = totalSec / 60UL;
       unsigned long ss = totalSec % 60UL;
       if (mm > 99) mm = 99;
-      label = (state == TS_RUNNING) ? "Timer" : "Paused";
       snprintf(val, sizeof(val), "%02lu:%02lu", mm, ss);
       break;
     }
     case TS_ALARM:
-      label = "ALARM";
       snprintf(val, sizeof(val), "00:00");
       break;
   }
 
   display_set_font(FONT_LARGE);
 
-  if (state == TS_RUNNING) {
-    // Running: show only the time, as large as the panel allows — no label,
-    // no hint.
-    display_print_big(val, false);
-  } else if (state == TS_ALARM) {
+  if (state == TS_ALARM) {
     // Full-screen flashing inversion for maximum noticeability:
     // alarmVisible true  → black background + white "00:00"
     // alarmVisible false → white background + black "00:00"
     display_print_big("00:00", alarmVisible);
   } else {
-    display_reset();
-    if (label) print_centered(0, label);
-    print_centered(1, val);
-    const char* hint = nullptr;
-    if (state == TS_IDLE)          hint = "1x:start 2x:next";
-    else if (state == TS_PAUSED)   hint = "1x:resume 2x:reset";
-    if (hint) print_centered(2, hint);
-    display_flush();
+    // IDLE / RUNNING / PAUSED: show only the clock, no label, no hint.
+    display_print_big(val, false);
   }
 
   // Track what we last drew so loop() can skip redundant redraws.
