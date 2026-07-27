@@ -17,21 +17,6 @@ static unsigned long elapsedMs() {
 }
 
 // --- Rendering -----------------------------------------------------------
-// FONT_LARGE: 3 rows, 20 cols. Big value centered on the middle row.
-static void print_centered(int row, const char* s) {
-  int cols = display_cols();
-  int len = (int)strlen(s);
-  char line[40];
-  int pad = (cols - len) / 2;
-  if (pad < 0) pad = 0;
-  int i = 0;
-  while (i < pad && i < (int)sizeof(line) - 1) line[i++] = ' ';
-  int j = 0;
-  while (s[j] && i < (int)sizeof(line) - 1) line[i++] = s[j++];
-  line[i] = '\0';
-  display_print(row, line);
-}
-
 static void render() {
   unsigned long totalSec = elapsedMs() / 1000UL;
   unsigned long mm = totalSec / 60UL;
@@ -49,11 +34,8 @@ static void render() {
     display_print_big(val, ss == 0 && totalSec > 0);
     lastShownSec = (long)totalSec;
   } else {
-    display_reset();
-    print_centered(0, "Stopwatch");
-    print_centered(1, val);
-    print_centered(2, "1x:start 2x:reset");
-    display_flush();
+    // Stopped: show only the clock, inverted to signal the stopped state.
+    display_print_big(val, true);
     lastShownSec = -1;
   }
 }

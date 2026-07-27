@@ -10,7 +10,7 @@
 #include "ap.h"
 
 #define LONG_PRESS_MS        1000
-#define DOUBLE_CLICK_MS       400
+#define DOUBLE_CLICK_MS       500
 #define SLEEP_TIMEOUT_MS  300000UL  // 5 minutes
 
 // Button GPIO — set via build flag per board; defaults to GPIO0 (BOOT)

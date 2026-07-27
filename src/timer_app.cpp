@@ -75,8 +75,8 @@ static void render() {
     // alarmVisible false → white background + black "00:00"
     display_print_big("00:00", alarmVisible);
   } else {
-    // IDLE / RUNNING / PAUSED: show only the clock, no label, no hint.
-    display_print_big(val, false);
+    // RUNNING normal; IDLE / PAUSED inverted to signal the stopped state.
+    display_print_big(val, state != TS_RUNNING);
   }
 
   // Track what we last drew so loop() can skip redundant redraws.
