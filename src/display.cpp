@@ -25,7 +25,14 @@ static const FontConfig FONTS[] = {
 static DisplayFont currentFont = FONT_SMALL;
 static float progressFraction = -1.0f; // negative means don't draw
 
+#if defined(VISION_MASTER_E213)
+static EInkDisplay_VisionMasterE213 display;
+// Flipped so the buttons sit on the reachable side.
+#define DISPLAY_ROTATION 3
+#else
 static EInkDisplay_WirelessPaperV1_2 display;
+#define DISPLAY_ROTATION 1
+#endif
 static bool fastmodeActive = false;
 
 #define MAX_ROWS 5
@@ -67,7 +74,7 @@ static void hw_render() {
   const FontConfig& fc = FONTS[currentFont];
   ensure_fastmode();
   display.clearMemory();
-  display.setRotation(1);
+  display.setRotation(DISPLAY_ROTATION);
   display.setFont(fc.gfx);
   for (int i = 0; i < fc.rows; i++) {
     if (buffer[i][0] == '\0') continue;
@@ -98,7 +105,7 @@ static void hw_render_row(int row) {
 }
 
 void display_setup() {
-  display.setRotation(1);
+  display.setRotation(DISPLAY_ROTATION);
   display_clear();
 }
 
@@ -216,7 +223,7 @@ void display_print_big(const char* text, bool invert) {
   } else {
     display.clearMemory();
   }
-  display.setRotation(1);
+  display.setRotation(DISPLAY_ROTATION);
   display.setFont(fc.gfx);
   display.setTextColor(invert ? WHITE : BLACK);
   display.setTextWrap(false);
