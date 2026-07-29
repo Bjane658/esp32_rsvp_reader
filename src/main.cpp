@@ -10,6 +10,7 @@
 
 void setup() {
   Serial.begin(115200);
+  delay(300);  // let USB-CDC enumerate so early display logs are visible
   display_setup();
   pinMode(BUTTON_GPIO, INPUT_PULLUP);
 
