@@ -18,6 +18,15 @@
 #define BUTTON_GPIO 0
 #endif
 
+#ifdef HAS_BUTTON2
+// Second physical button (E213 PRG/BOOT, active-LOW; verified on hardware).
+// Acts as a dedicated reset/action button, replacing the single-button
+// double-click gesture. Override via -DBUTTON2_GPIO=n if wired elsewhere.
+#ifndef BUTTON2_GPIO
+#define BUTTON2_GPIO 0
+#endif
+#endif
+
 static unsigned long lastActivityTime = 0;
 
 static void resetActivity() {
@@ -33,41 +42,7 @@ void reader_sleep() {
     p.end();
   }
 
-  display_clear();
-  display_set_font(FONT_SMALL);
-
-  const String& filePath = te_get_current_file();
-  if (!filePath.isEmpty()) {
-    const char* name = filePath.c_str();
-    const char* slash = strrchr(name, '/');
-    display_print(0, slash ? slash + 1 : name);
-  } else {
-    display_print(0, "(no file)");
-  }
-
-  int chCount = te_get_chapter_count();
-  if (chCount > 0) {
-    const Chapter* chapters = te_get_chapters();
-    size_t pos = te_current_pos();
-    int idx = 0;
-    for (int i = 0; i < chCount; i++) {
-      if (chapters[i].offset <= pos) idx = i;
-      else break;
-    }
-    char chBuf[32];
-    snprintf(chBuf, sizeof(chBuf), "Ch: %s", chapters[idx].title);
-    display_print(1, chBuf);
-  }
-
-  size_t total = te_file_size();
-  if (total > 0) {
-    int pct = (int)(te_current_pos() * 100UL / total);
-    char pctBuf[20];
-    snprintf(pctBuf, sizeof(pctBuf), "Progress: %d%%", pct);
-    display_print(2, pctBuf);
-  }
-
-  display_flush();
+  display_print_big("sleeping", false, true);
   delay(100);
   esp_sleep_enable_ext0_wakeup((gpio_num_t)BUTTON_GPIO, 0);
   esp_deep_sleep_start();
@@ -92,6 +67,22 @@ void IRAM_ATTR reader_onButtonChange() {
     }
   }
 }
+
+#ifdef HAS_BUTTON2
+static volatile unsigned long btn2PressStart = 0;
+static volatile bool          btn2Down       = false;
+static volatile bool          resetPressFlag = false;
+
+void IRAM_ATTR reader_onButton2Change() {
+  if (digitalRead(BUTTON2_GPIO) == LOW) {
+    btn2PressStart = millis();
+    btn2Down = true;
+  } else if (btn2Down) {
+    btn2Down = false;
+    if (millis() - btn2PressStart >= 20) resetPressFlag = true;
+  }
+}
+#endif
 
 static void saveActiveApp() {
   App* a = app_get_active();
@@ -127,9 +118,56 @@ static void loadActiveApp() {
   if (a) app_push(a);
 }
 
+#ifdef TOOLS_ONLY
+// Tools-only build (E213): the device has exactly two apps, Timer and
+// Stopwatch, and no menu. Both run concurrently — the hidden one keeps
+// ticking its state (so a backgrounded timer still counts down and fires its
+// alarm) but its render output is dropped via display_set_suspended(). A long
+// press swaps which one is visible.
+static App* s_tools[2] = { nullptr, nullptr };
+static int  s_activeIdx = 0;
+
+static App* tools_hidden() { return s_tools[s_activeIdx ^ 1]; }
+
+static void tools_setup() {
+  s_tools[0] = app_registry_find_by_id("timer");
+  s_tools[1] = app_registry_find_by_id("stopwatch");
+
+  // Restore which tool was visible before sleep; default to the timer.
+  Preferences p;
+  p.begin("reader", false);
+  String wake = p.getString("wake_app", "timer");
+  p.end();
+  s_activeIdx = (wake == "stopwatch") ? 1 : 0;
+
+  // Start both so both hold live state, but only render the visible one.
+  display_set_suspended(true);
+  if (tools_hidden() && tools_hidden()->start) tools_hidden()->start();
+  display_set_suspended(false);
+  app_push(s_tools[s_activeIdx]);  // start() + becomes app_get_active()
+}
+
+static void tools_swap() {
+  // Hide the current tool, reveal the other. Neither is stopped: state on both
+  // sides is preserved and keeps advancing.
+  s_activeIdx ^= 1;
+  App* next = s_tools[s_activeIdx];
+
+  // Point app_get_active() (used by short/double press and sleep) at the
+  // now-visible tool without a stop()/start() cycle that would reset it.
+  app_set_active_top(next);
+  display_set_suspended(false);
+  if (next && next->show) next->show();
+}
+#endif
+
 void reader_setup() {
   te_setup();
+#ifdef TOOLS_ONLY
+  tools_setup();
+#else
   loadActiveApp();  // app_push calls start() on the active app
+#endif
   resetActivity();
 }
 
@@ -143,6 +181,9 @@ void reader_loop() {
   if (longPressFlag) {
     longPressFlag = false;
     resetActivity();
+#ifdef TOOLS_ONLY
+    tools_swap();  // no menu: long press just toggles Timer <-> Stopwatch
+#else
     if (menu_is_open()) {
       menu_long_press();
     } else {
@@ -150,9 +191,31 @@ void reader_loop() {
       if (a && a->set_running) a->set_running(false);
       menu_open();
     }
+#endif
   }
 
-  // short / double-click handling
+#if defined(HAS_BUTTON2)
+  // Two-button model: no double-click. Button 1 short press toggles the
+  // active app's run state immediately; button 2 triggers its reset/action
+  // (the old double-press semantics).
+  if (shortPressFlag) {
+    shortPressFlag = false;
+    resetActivity();
+    App* a = app_get_active();
+    if (a && a->set_running) {
+      bool isRunning = a->is_running && a->is_running();
+      a->set_running(!isRunning);
+    }
+  }
+
+  if (resetPressFlag) {
+    resetPressFlag = false;
+    resetActivity();
+    App* a = app_get_active();
+    if (a && a->double_press) a->double_press();
+  }
+#else
+  // Single-button model: short/double-click handling
   static unsigned long firstPressTime   = 0;
   static bool          waitingForDouble = false;
 
@@ -202,10 +265,17 @@ void reader_loop() {
       }
     }
   }
+#endif
 
   // sleep when idle
   App* a = app_get_active();
   bool appRunning = a && a->is_running && a->is_running();
+#ifdef TOOLS_ONLY
+  // Stay awake while the backgrounded tool is running too (e.g. a hidden timer
+  // still counting down).
+  App* h = tools_hidden();
+  if (h && h->is_running && h->is_running()) appRunning = true;
+#endif
   if (!appRunning && (millis() - lastActivityTime > SLEEP_TIMEOUT_MS)) {
     reader_sleep();
   }
@@ -223,6 +293,16 @@ void reader_loop() {
   }
 
   if (a && a->loop) a->loop();
+
+#ifdef TOOLS_ONLY
+  // Tick the backgrounded tool too, but drop its rendering.
+  App* hidden = tools_hidden();
+  if (hidden && hidden->loop) {
+    display_set_suspended(true);
+    hidden->loop();
+    display_set_suspended(false);
+  }
+#endif
 }
 
 void reader_cycle_app() {

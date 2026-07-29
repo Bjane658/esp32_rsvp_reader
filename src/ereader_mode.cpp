@@ -213,6 +213,8 @@ static App s_ereader_app = {
   true   // cycleable: reading mode
 };
 
+#ifndef TOOLS_ONLY
 static struct EreaderRegistrar {
   EreaderRegistrar() { app_registry_register(&s_ereader_app); }
 } s_ereader_registrar;
+#endif

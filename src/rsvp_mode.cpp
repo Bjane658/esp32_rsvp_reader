@@ -169,6 +169,8 @@ static App s_rsvp_app = {
   true   // cycleable: reading mode
 };
 
+#ifndef TOOLS_ONLY
 static struct RsvpRegistrar {
   RsvpRegistrar() { app_registry_register(&s_rsvp_app); }
 } s_rsvp_registrar;
+#endif

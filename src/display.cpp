@@ -35,6 +35,12 @@ static EInkDisplay_WirelessPaperV1_2 display;
 #endif
 static bool fastmodeActive = false;
 
+// When suspended, all panel writes are no-ops. A backgrounded tool app keeps
+// ticking its state (and calling render) but its output is dropped until it
+// becomes visible again and is redrawn via show().
+static bool suspended = false;
+void display_set_suspended(bool s) { suspended = s; }
+
 #define MAX_ROWS 5
 #define MAX_COLS 28
 static char buffer[MAX_ROWS][MAX_COLS + 1];
@@ -71,6 +77,7 @@ static void ensure_fastmode() {
 }
 
 static void hw_render() {
+  if (suspended) return;
   const FontConfig& fc = FONTS[currentFont];
   ensure_fastmode();
   display.clearMemory();
@@ -92,6 +99,7 @@ static void hw_render() {
 }
 
 static void hw_render_row(int row) {
+  if (suspended) return;
   const FontConfig& fc = FONTS[currentFont];
   ensure_fastmode();
   int y = MARGIN_Y + row * fc.line_height;
@@ -106,7 +114,9 @@ static void hw_render_row(int row) {
 
 void display_setup() {
   display.setRotation(DISPLAY_ROTATION);
-  display_clear();
+  // No clear here: the boot path (OTA prompt or app start) issues its own
+  // full refresh, so clearing first would double-flicker the panel at start.
+  display_reset();
 }
 
 void display_set_font(DisplayFont f) {
@@ -210,14 +220,24 @@ void display_word(const char* prev, const char* word, const char* next) {
 // remaining time as large as the panel allows. Bypasses the row buffer and
 // draws directly (like display_word). Flushes immediately.
 // invert = true → black background + white text (for the alarm flash).
-void display_print_big(const char* text, bool invert) {
+void display_print_big(const char* text, bool invert, bool fullRefresh) {
+  if (suspended) return;
   const FontConfig& fc = FONTS[FONT_LARGE];
   for (int i = 0; i < MAX_ROWS; i++)
     buffer[i][0] = '\0';
   cursorRow = -1;
   progressFraction = -1.0f;
 
-  ensure_fastmode();
+  // Static screens (e.g. the sleep screen) use a single non-fastmode refresh:
+  // clean, no ghosting, and only one flicker cycle instead of fastmode's two.
+  if (fullRefresh) {
+    if (fastmodeActive) {
+      display.fastmodeOff();
+      fastmodeActive = false;
+    }
+  } else {
+    ensure_fastmode();
+  }
   if (invert) {
     display.fillScreen(BLACK);
   } else {

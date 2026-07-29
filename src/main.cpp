@@ -25,11 +25,19 @@ void setup() {
         ota_run();  // does not return — reboots on finish
       }
     }
-    // released before threshold — continue normal boot
-    display_clear();
+    // released before threshold — continue normal boot; the app start below
+    // does its own full refresh, so no clear here (avoids a double flicker)
+    display_reset();
   }
 
   attachInterrupt(digitalPinToInterrupt(BUTTON_GPIO), reader_onButtonChange, CHANGE);
+#ifdef HAS_BUTTON2
+#ifndef BUTTON2_GPIO
+#define BUTTON2_GPIO 0
+#endif
+  pinMode(BUTTON2_GPIO, INPUT_PULLUP);  // second button, active-LOW
+  attachInterrupt(digitalPinToInterrupt(BUTTON2_GPIO), reader_onButton2Change, CHANGE);
+#endif
   reader_setup();
 }
 

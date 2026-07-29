@@ -29,6 +29,11 @@ void app_push(App* app) {
     if (app && app->start) app->start();
 }
 
+void app_set_active_top(App* app) {
+    if (s_top < 0) s_top = 0;
+    s_stack[s_top] = app;
+}
+
 void app_pop() {
     if (s_top <= 0) return;
     if (s_stack[s_top] && s_stack[s_top]->stop) s_stack[s_top]->stop();

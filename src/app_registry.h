@@ -32,6 +32,7 @@ App* app_registry_find_by_id(const char* id);
 
 // Stack-based dispatch: push/pop for overlays, cycle to replace top
 void app_push(App* app);   // push onto stack and call start()
+void app_set_active_top(App* app); // replace stack top in place, no start()/stop()
 void app_pop();            // call stop() on top, pop, call show() on new top
 App* app_get_active();     // top of stack (never nullptr if any app registered)
 int  app_get_active_index(); // index of active app in registry
